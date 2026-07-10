@@ -15,8 +15,11 @@ def get_options(args=None):
     parser.add_argument('--val_size', type=int, default=10000, help='Number of instances used for reporting validation performance')
     parser.add_argument('--generate_PI_mask', action='store_true', help='whether to generate the PI masking')
     parser.add_argument('--hardness', type=str, default="hard", choices=["hard", "medium", "easy"], help="Different levels of constraint hardness")
-    parser.add_argument('--val_dataset', type=str, default="../data/TSPTW/tsptw50_hard.pkl", help='Dataset file to use for validation')
-    parser.add_argument('--val_solution_path', type=str, default='../data/TSPTW/lkh_tsptw50_hard.pkl"')
+    parser.add_argument('--val_dataset', type=str, default=None, help='Dataset file to use for validation (.pkl/.npz); defaults to the provided dataset for graph_size/hardness')
+    parser.add_argument('--val_solution_path', type=str, default=None, help='Optimal solutions for the validation set (gap computation); skipped if the file does not exist')
+    parser.add_argument('--train_set_path', type=str, default=None, help='Train on a fixed dataset (.pkl/.npz) instead of on-the-fly instance generation')
+    parser.add_argument('--include_service_time', action='store_true', help='Include service times as node feature (for instances with non-zero service times)')
+    parser.add_argument('--keep_all_checkpoints', action='store_true', help='Keep every epoch-N.pt instead of only the latest one')
 
     # PIP
     parser.add_argument('--pip_decoder', action='store_true', help="activate PIP-D")
@@ -83,8 +86,11 @@ def get_options(args=None):
 
     opts = parser.parse_args(args)
 
-    opts.val_dataset = f"../data/TSPTW/tsptw{opts.graph_size}_{opts.hardness}.pkl"
-    opts.val_solution_path = f"../data/TSPTW/lkh_tsptw{opts.graph_size}_{opts.hardness}.pkl"
+    # only default to the provided datasets when not given explicitly
+    if opts.val_dataset is None:
+        opts.val_dataset = f"../data/TSPTW/tsptw{opts.graph_size}_{opts.hardness}.pkl"
+        if opts.val_solution_path is None:
+            opts.val_solution_path = f"../data/TSPTW/lkh_tsptw{opts.graph_size}_{opts.hardness}.pkl"
 
     # Pretty print the run args
     pp.pprint(vars(opts))
@@ -127,7 +133,7 @@ def get_options(args=None):
     if opts.bl_warmup_epochs is None:
         opts.bl_warmup_epochs = 1 if opts.baseline == 'rollout' else 0
     assert (opts.bl_warmup_epochs == 0) or (opts.baseline == 'rollout')
-    assert opts.epoch_size % opts.batch_size == 0, "Epoch size must be integer multiple of batch size!"
+    assert opts.train_set_path is not None or opts.epoch_size % opts.batch_size == 0, "Epoch size must be integer multiple of batch size!"
 
     from utils import create_logger
     create_logger(filename="run_log", log_path=opts.save_dir)

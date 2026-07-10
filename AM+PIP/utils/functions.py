@@ -39,7 +39,8 @@ def load_problem(name):
 
 
 def torch_load_cpu(load_path):
-    return torch.load(load_path, map_location=lambda storage, loc: storage)  # Load on CPU
+    # weights_only=False: checkpoints contain full baseline state (model/dataset objects)
+    return torch.load(load_path, map_location=lambda storage, loc: storage, weights_only=False)  # Load on CPU
 
 
 def move_to(var, device):
@@ -59,7 +60,7 @@ def _load_model_file(load_path, model):
         os.path.join(
             os.getcwd(),
             load_path
-        ), map_location=lambda storage, loc: storage)
+        ), map_location=lambda storage, loc: storage, weights_only=False)
 
     if isinstance(load_data, dict):
         load_optimizer_state_dict = load_data.get('optimizer', None)
@@ -141,7 +142,8 @@ def load_model(path, epoch=None):
         normalization=args['normalization'],
         tanh_clipping=args['tanh_clipping'],
         checkpoint_encoder=args.get('checkpoint_encoder', False),
-        shrink_size=args.get('shrink_size', None)
+        shrink_size=args.get('shrink_size', None),
+        include_service_time=args.get('include_service_time', False)
     )
     # Overwrite model parameters by parameters to load
     load_data = torch_load_cpu(model_filename)

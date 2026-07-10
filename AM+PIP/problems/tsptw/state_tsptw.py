@@ -8,6 +8,7 @@ from utils.boolmask import mask_long2bool, mask_long_scatter
 class StateTSPTWInt(NamedTuple):
     # Fixed input
     timew: torch.Tensor  # Depot + loc
+    service: torch.Tensor  # (batch, n + 1) service time per node (zero for the original PIP datasets)
     dist: torch.Tensor  # (n + 1, n + 1), rounded to integer values with triangle inequality hack
 
     # If this state contains multiple copies (i.e. beam search) for the same instance, then for memory efficiency the
@@ -49,12 +50,14 @@ class StateTSPTWInt(NamedTuple):
             "Compressed mask not yet supported for TSPTW, first check code if depot is handled correctly"
 
         loc = input[:, : ,:2]
-        timew = input[:, : , 2:]
+        timew = input[:, : , 2:4]
+        service = input[:, :, 4] if input.size(-1) > 4 else input.new_zeros(input.size(0), input.size(1))
 
         batch_size, n_loc, _ = loc.size()
         dist = torch.cdist(loc, loc, p=2, compute_mode='donot_use_mm_for_euclid_dist')
         return StateTSPTWInt( #start from the depot
             timew=timew,
+            service=service,
             dist=dist,
             ids=torch.arange(batch_size, dtype=torch.int64, device=loc.device)[:, None],  # Add steps dimension
             prev_a=torch.zeros(batch_size, 1, dtype=torch.long, device=loc.device),
@@ -95,11 +98,12 @@ class StateTSPTWInt(NamedTuple):
         # Add the length (only needed for DP)
         d = self.dist[self.ids, self.prev_a, prev_a]
 
-        # Compute new time
+        # Compute new time (timeout is measured on arrival, before service, as in AMAI/LMask)
         lb, ub = torch.unbind(self.timew[self.ids, prev_a], -1)
         t = torch.max(self.current_time + d, lb)
         timeout = torch.clamp(t - ub, min=0)
         # assert (t <= ub).all()
+        t = t + self.service[self.ids, prev_a]
 
         # Compute lengths (costs is equal to length)
         lengths = self.lengths + d  # (batch_dim, 1)
@@ -147,6 +151,9 @@ class StateTSPTWInt(NamedTuple):
         prev_action_expanded = self.prev_a.unsqueeze(2).expand(-1, -1, unvisited.shape[2])
         first_step_new_length = self.dist[self.ids.unsqueeze(2), prev_action_expanded, unvisited]
         first_step_arrival_time = torch.max(self.current_time.unsqueeze(2).expand(-1, -1, unvisited.shape[2]) + first_step_new_length, first_step_tw_start)
+        # serving the first-step node takes its service time before departing to the second-step node
+        first_step_service = torch.masked_select(self.service[:, None, :], self.visited != 1).reshape(batch_size, 1, -1)
+        first_step_arrival_time = first_step_arrival_time + first_step_service
 
         # add arrival_time of the second-step nodes
         node_tw_end = self.timew[:, None, :, 1]

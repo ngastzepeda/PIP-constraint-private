@@ -159,13 +159,23 @@ class RolloutBaseline(Baseline):
             if len(dataset) != self.opts.val_size:
                 print("Warning: not using saved baseline dataset since val_size does not match")
                 dataset = None
-            elif (dataset[0] if self.problem.NAME == 'tsp' else dataset[0]['loc']).size(0) != self.opts.graph_size:
+            elif (dataset[0] if not isinstance(dataset[0], dict) else dataset[0]['loc']).size(0) != self.opts.graph_size:
                 print("Warning: not using saved baseline dataset since graph_size does not match")
                 dataset = None
 
         if dataset is None:
-            self.dataset = self.problem.make_dataset(
-                size=self.opts.graph_size, num_samples=self.opts.val_size, hardness=self.opts.hardness)
+            if getattr(self.opts, 'train_set_path', None) is not None:
+                # fixed-dataset training: draw the baseline evaluation dataset from the same fixed
+                # instance distribution (random slice of the training file) instead of the generator
+                total = len(self.problem.make_dataset(
+                    filename=self.opts.train_set_path, size=self.opts.graph_size, num_samples=int(1e9)))
+                offset = torch.randint(0, max(total - self.opts.val_size, 1), (1,)).item()
+                self.dataset = self.problem.make_dataset(
+                    filename=self.opts.train_set_path, size=self.opts.graph_size,
+                    num_samples=self.opts.val_size, offset=offset)
+            else:
+                self.dataset = self.problem.make_dataset(
+                    size=self.opts.graph_size, num_samples=self.opts.val_size, hardness=self.opts.hardness)
         else:
             self.dataset = dataset
         print(">> Evaluating baseline model on evaluation dataset")

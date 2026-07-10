@@ -56,7 +56,8 @@ class AttentionModel(nn.Module):
                  normalization='batch',
                  n_heads=8,
                  checkpoint_encoder=False,
-                 shrink_size=None):
+                 shrink_size=None,
+                 include_service_time=False):
         super(AttentionModel, self).__init__()
 
         self.embedding_dim = embedding_dim
@@ -88,6 +89,7 @@ class AttentionModel(nn.Module):
         self.input_pip_model = None
         self.pip_embedding = None
         self.decision_boundary = decision_boundary
+        self.include_service_time = include_service_time
 
         # Problem specific context parameters (placeholder and step context dimension)
         if self.is_vrp or self.is_orienteering or self.is_pctsp:
@@ -105,7 +107,8 @@ class AttentionModel(nn.Module):
             if self.is_vrp and self.allow_partial:  # Need to include the demand if split delivery allowed
                 self.project_node_step = nn.Linear(1, 3 * embedding_dim, bias=False)
         elif self.is_tsptw or self.is_tspdl: #TSPDL #TSPTW
-            node_dim = 4  # x, y, tw_start, tw_end or node_xy, node_demand, node_draft_limit
+            # x, y, tw_start, tw_end (+ service time) or node_xy, node_demand, node_draft_limit
+            node_dim = 5 if (self.is_tsptw and include_service_time) else 4
             step_context_dim = embedding_dim + 1
         else:  # TSP
             assert problem.NAME == "tsp", "Unsupported problem: {}".format(problem.NAME)
@@ -257,10 +260,13 @@ class AttentionModel(nn.Module):
                 1
             )
         if self.is_tsptw:
-            # normalize the time window
-            input_clone = input.clone()
-            tw_end_max = input_clone[:, :1, 3:]
+            # normalize the time window (and service time) by the depot tw_end;
+            # drop the service-time column when the model was built without it
+            input_clone = input.clone() if (self.include_service_time or input.size(-1) == 4) else input[:, :, :4].clone()
+            tw_end_max = input_clone[:, :1, 3:4]
             input_clone[:, :, 2:] = input_clone[:, :, 2:] / tw_end_max
+        else:
+            input_clone = input
         # TSP/TSPDL/TSPTW
         return self.init_embed(input_clone)
 

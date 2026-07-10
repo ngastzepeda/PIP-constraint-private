@@ -44,7 +44,7 @@ def validate(model, dataset, opts, epoch=None, tb_logger=None):
     cost = rollout(model, dataset, opts, epoch, tb_logger, return_penalty=True)
     if len(cost.shape) > 1:
         cost, timeout, timeout_nodes = cost[:, 0], cost[:, 1], cost[:, 2]
-        if opts.val_solution_path:
+        if opts.val_solution_path and os.path.exists(opts.val_solution_path):
             with open(opts.val_solution_path, 'rb') as f:
                 opt_sol = pickle.load(f)
             grid_factor = 100. if opts.problem == "tsptw" else 1.
@@ -109,7 +109,7 @@ def rollout(model, dataset, opts, epoch=None, tb_logger=None, return_penalty = F
         else:
             return cost.data.cpu()
 
-    costs = torch.tensor([]).cuda()
+    costs = torch.tensor([]).to(opts.device)
     sl_flag = False
     tps, tns, infsb_nums, fsb_nums = 0, 0, 0, 0
     for bat in tqdm(DataLoader(dataset, batch_size=opts.eval_batch_size), disable=opts.no_progress_bar):
@@ -122,7 +122,7 @@ def rollout(model, dataset, opts, epoch=None, tb_logger=None, return_penalty = F
             infsb_nums += infsb_num
             fsb_nums += fsb_num
 
-        costs = torch.cat([costs, cost.cuda()], 0)
+        costs = torch.cat([costs, cost.to(opts.device)], 0)
 
     if sl_flag:
         accuracy = (tps + tns) / (infsb_nums + fsb_nums) * 100
@@ -148,10 +148,19 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
     if not opts.no_tensorboard:
         tb_logger.log_value('learnrate_pg0', optimizer.param_groups[0]['lr'], step)
 
-    # Generate new training data for each epoch
-    training_dataset = baseline.wrap_dataset(problem.make_dataset(
-        size=opts.graph_size, num_samples=opts.epoch_size, hardness=opts.hardness))
-    training_dataloader = DataLoader(training_dataset, batch_size=opts.batch_size, num_workers=0)
+    if getattr(opts, 'train_set_path', None) is not None:
+        # Train on a fixed dataset (e.g. the AMAI npz instances): load once, reshuffle every epoch
+        if not hasattr(opts, '_fixed_train_dataset'):
+            opts._fixed_train_dataset = problem.make_dataset(
+                filename=opts.train_set_path, size=opts.graph_size, num_samples=int(1e9), hardness=opts.hardness)
+            print(">> Training on fixed dataset: {} ({} instances)".format(opts.train_set_path, len(opts._fixed_train_dataset)))
+        training_dataset = baseline.wrap_dataset(opts._fixed_train_dataset)
+        training_dataloader = DataLoader(training_dataset, batch_size=opts.batch_size, num_workers=0, shuffle=True)
+    else:
+        # Generate new training data for each epoch
+        training_dataset = baseline.wrap_dataset(problem.make_dataset(
+            size=opts.graph_size, num_samples=opts.epoch_size, hardness=opts.hardness))
+        training_dataloader = DataLoader(training_dataset, batch_size=opts.batch_size, num_workers=0)
 
     # Put model in train mode!
     model.train()
@@ -199,6 +208,13 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
             },
             os.path.join(opts.save_dir, 'epoch-{}.pt'.format(epoch))
         )
+        if not getattr(opts, 'keep_all_checkpoints', False):
+            # only keep the latest full checkpoint (plus the best-model files) to bound disk usage
+            import re
+            for f in os.listdir(opts.save_dir):
+                m = re.fullmatch(r"epoch-(\d+)\.pt", f)
+                if m and int(m.group(1)) != epoch:
+                    os.remove(os.path.join(opts.save_dir, f))
 
         if opts.pip_decoder and opts.is_train_pip_decoder and opts.pip_save == "epoch":
 
@@ -255,6 +271,17 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
             tb_logger.log_value('validation/val_infsb_rate', infsb_rate, epoch)
             tb_logger.log_value('validation/val_avg_timeout', avg_timeout, epoch)
             tb_logger.log_value('validation/val_avg_timeout_nodes', avg_timeout_nodes, epoch)
+
+        # Model selection consistent with the AMAI/LMask convention: monitor the instance-level
+        # feasibility rate first, tie-break by feasible cost.
+        val_feas = 100. - infsb_rate
+        val_cost = avg_reward.item() if torch.is_tensor(avg_reward) else float(avg_reward)
+        best_feas, best_cost = getattr(opts, 'best_val_feas', -1.), getattr(opts, 'best_val_cost', float('inf'))
+        if (val_feas > best_feas) or (val_feas == best_feas and val_cost < best_cost):
+            opts.best_val_feas, opts.best_val_cost = val_feas, val_cost
+            base_model = model[0] if isinstance(model, list) else model
+            torch.save(get_inner_model(base_model).state_dict(), os.path.join(opts.save_dir, 'val_best.pt'))
+            print(">> Best model on validation dataset saved! (feasible rate: {:.2f}%, cost: {:.4f})".format(val_feas, val_cost))
 
     if not opts.no_tensorboard:
         tb_logger.log_value('validation/val_avg_reward', avg_reward, epoch)

@@ -47,14 +47,23 @@ class TSPTW(object):
         batch_zeros = pi.new_zeros((batch_size, ))
         cur = batch_zeros
         batch_ind = torch.arange(batch_size).long()
-        lb, ub = torch.unbind(dataset[:, :, 2:], -1)
+        lb, ub = torch.unbind(dataset[:, :, 2:4], -1)
+        # service times (5th feature column; zero for the original PIP datasets)
+        service = dataset[:, :, 4] if dataset.size(-1) > 4 else dist.new_zeros((batch_size, graph_size))
         timeout = []
         for i in range(graph_size - 1):
             next = pi[:, i]
+            # timeout is measured on arrival (before service), as in AMAI/LMask
             t = torch.max(t + dist[batch_ind, cur, next], lb[batch_ind, next])
             timeout.append(torch.clamp(t - ub[batch_ind, next], min=0))
             # assert (t <= ub[batch_ind, next]).all()
+            t = t + service[batch_ind, next]
             cur = next
+
+        # return to depot before the depot tw_end (AMAI/LMask TSPTW semantics); for the original
+        # PIP datasets the depot window is recomputed to be non-binding, so this timeout is 0 there
+        t = t + dist[batch_ind, cur, batch_zeros]
+        timeout.append(torch.clamp(t - ub[:, 0], min=0))
 
         length = dist[batch_ind, 0, pi[:, 0]] + dist[batch_ind[:, None], pi[:, :-1], pi[:, 1:]].sum(-1) + dist[batch_ind, pi[:, -1], 0]
         # We want to maximize total prize but code minimizes so return negative
@@ -76,26 +85,48 @@ class TSPTWDataset(Dataset):
 
 
         self.data_set = []
-        if filename is not None:
-            assert os.path.splitext(filename)[1] == '.pkl'
-            with open(filename, 'rb') as f:
-                data = pickle.load(f)[offset: offset+num_samples]
-            node_xy, tw_start, tw_end = [i[0] for i in data], [i[2] for i in data], [i[3] for i in data]
-            node_xy, tw = torch.Tensor(node_xy), torch.cat([torch.Tensor(tw_start).unsqueeze(-1), torch.Tensor(tw_end).unsqueeze(-1)], dim=-1)
+        if filename is not None and filename.endswith('.npz'):
+            # AMAI-format instance file (keys: locs, service_times/service_time, time_windows, max_loc).
+            # Normalization (dividing locs, time windows AND service times by max_loc) is done here,
+            # consistent with the AMAI2025/LMask codebases; the depot time window from the data is kept.
+            npz = np.load(filename)
+            service_key = "service_times" if "service_times" in npz else "service_time"
+            node_xy = torch.Tensor(npz["locs"][offset: offset + num_samples])
+            service = torch.Tensor(npz[service_key][offset: offset + num_samples])
+            tw = torch.Tensor(npz["time_windows"][offset: offset + num_samples])
+            if service.dim() == 3 and service.size(-1) == 1:
+                service = service.squeeze(-1)
+            if "n_vehicles" in npz:
+                assert (np.asarray(npz["n_vehicles"]) == 1).all(), "TSPTW requires n_vehicles == 1"
+            if node_xy.max() > 1.5:  # not normalized yet
+                max_loc = torch.Tensor(np.asarray(npz["max_loc"], dtype=np.float32)[offset: offset + num_samples]) \
+                    if "max_loc" in npz else torch.full((node_xy.size(0), 1), 100.)
+                node_xy = node_xy / max_loc.unsqueeze(-1)
+                tw = tw / max_loc.unsqueeze(-1)
+                service = service / max_loc
         else:
-            node_xy, tw = get_random_problems(num_samples, size, hardness)
-            #(batch, problem, 2)
+            if filename is not None:
+                assert os.path.splitext(filename)[1] == '.pkl'
+                with open(filename, 'rb') as f:
+                    data = pickle.load(f)[offset: offset+num_samples]
+                node_xy, service, tw_start, tw_end = [i[0] for i in data], [i[1] for i in data], [i[2] for i in data], [i[3] for i in data]
+                node_xy, service, tw = torch.Tensor(node_xy), torch.Tensor(service), torch.cat([torch.Tensor(tw_start).unsqueeze(-1), torch.Tensor(tw_end).unsqueeze(-1)], dim=-1)
+            else:
+                node_xy, tw = get_random_problems(num_samples, size, hardness)
+                #(batch, problem, 2)
+                service = torch.zeros(node_xy.size(0), node_xy.size(1))
 
-        if normalize:
-            # Normalize as in DPDP (Kool et. al)
-            loc_factor = 100
-            node_xy = node_xy / loc_factor  # Normalize
-            tw = tw / loc_factor
-            tw_end_max = (torch.cdist(node_xy[:, None, 0], node_xy[:, 1:]).squeeze(1) + tw[:, 1:, 1]).max(dim=-1)[0]
-            tw[:, 0, 1] = tw_end_max
-            # nodes_timew = nodes_timew / nodes_timew[0, 1]
+            if normalize:
+                # Normalize as in DPDP (Kool et. al)
+                loc_factor = 100
+                node_xy = node_xy / loc_factor  # Normalize
+                tw = tw / loc_factor
+                service = service / loc_factor
+                tw_end_max = (torch.cdist(node_xy[:, None, 0], node_xy[:, 1:]).squeeze(1) + tw[:, 1:, 1]).max(dim=-1)[0]
+                tw[:, 0, 1] = tw_end_max
+                # nodes_timew = nodes_timew / nodes_timew[0, 1]
 
-        self.data = torch.cat([node_xy, tw], dim=-1)
+        self.data = torch.cat([node_xy, tw, service[:, :, None]], dim=-1)
         self.size = len(self.data)
 
     def __len__(self):

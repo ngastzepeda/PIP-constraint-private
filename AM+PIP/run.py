@@ -67,7 +67,8 @@ def run(opts):
         normalization=opts.normalization,
         tanh_clipping=opts.tanh_clipping,
         checkpoint_encoder=opts.checkpoint_encoder,
-        shrink_size=opts.shrink_size
+        shrink_size=opts.shrink_size,
+        include_service_time=opts.include_service_time
     ).to(opts.device)
 
     if opts.use_cuda and torch.cuda.device_count() > 1:
@@ -157,7 +158,8 @@ def run(opts):
             normalization=opts.normalization,
             tanh_clipping=opts.tanh_clipping,
             checkpoint_encoder=opts.checkpoint_encoder,
-            shrink_size=opts.shrink_size
+            shrink_size=opts.shrink_size,
+            include_service_time=opts.include_service_time
         ).to(opts.device)
         if opts.use_cuda and torch.cuda.device_count() > 1:
             pip_model = torch.nn.DataParallel(pip_model)
@@ -191,7 +193,10 @@ def run(opts):
     if opts.eval_only:
         validate(model, val_dataset, opts)
     else:
-        for epoch in range(opts.epoch_start, opts.epoch_start + opts.n_epochs):
+        # n_epochs is the absolute target epoch count: a resumed run continues up to
+        # n_epochs (not n_epochs additional epochs), so the PIP-D epoch schedules and
+        # resubmit logic stay consistent across restarts
+        for epoch in range(opts.epoch_start, opts.n_epochs):
             print("====================================================================================================================")
             print(">> Start train PIP: epoch {}, lr={} for run {}".format(epoch, optimizer.param_groups[0]['lr'], opts.run_name))
 
