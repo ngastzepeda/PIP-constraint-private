@@ -1,10 +1,12 @@
 # PIP-constraint as a baseline on the AMAI TSPTW instances
 
 This fork adapts the NeurIPS'24 PIP-constraint repository (Bi et al., *Learning to
-Handle Complex Constraints for Vehicle Routing Problems*) so that both of its PIP
+Handle Complex Constraints for Vehicle Routing Problems*) so that two of its PIP
 implementations — **POMO+PIP** and **AM+PIP** — can be trained and evaluated on the
 AMAI2025 TSPTW instances (`data/feas_tsptw/`), under semantics consistent with the
-AMAI2025 and LMask codebases. This document records every deviation from the
+AMAI2025 and LMask codebases. (The upstream repo also ships a third implementation,
+`GFACS+PIP/`, merged from upstream July 2026 but left unmodified and not used as a
+baseline.) This document records every deviation from the
 upstream repo and the experiment settings, as a basis for the paper's baseline
 description.
 
@@ -152,6 +154,12 @@ neural baselines. (Optional ablation: rerun one or two configurations at ~2× bu
 to confirm the validation metrics have plateaued.)
 
 ## 5. Running / resuming
+
+Environment: the upstream repo ships no package metadata (`pip install -e .` is not
+applicable); dependencies are listed in `requirements.txt` (added in this fork,
+trimmed from the README's install line — no torchvision/torchaudio/tensorflow
+needed). On the cluster, create `.venv` at the repo root (sourced by
+`start_job.sh`): `python -m venv .venv && pip install -r requirements.txt`.
 
 ```shell
 bash submit_jobs.sh                                # reconcile all 24 jobs
