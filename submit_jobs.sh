@@ -16,5 +16,5 @@
 
 mkdir -p out/experiments
 
-module load lang/Python/3.10.4-GCCcore-11.3.0
+module load lang/Python/3.12.3-GCCcore-13.2.0
 python "submit_jobs.py" "$@"

@@ -26,7 +26,7 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 current_folder="$SLURM_SUBMIT_DIR"
 cd "$current_folder" || { echo "Error: Could not change to $current_folder"; exit 1; }
 
-module load lang/Python/3.10.4-GCCcore-11.3.0
+module load lang/Python/3.12.3-GCCcore-13.2.0
 
 # Source the virtual environment
 if [ -f "$current_folder/.venv/bin/activate" ]; then
