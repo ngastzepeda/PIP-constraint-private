@@ -4,7 +4,7 @@ from tensorboard_logger import Logger as TbLogger
 from utils import *
 from models.SINGLEModel import SINGLEModel
 from sklearn.utils.class_weight import compute_class_weight
-import os, wandb
+import os, re, wandb
 from sklearn.metrics import confusion_matrix
 
 class Trainer:
@@ -29,6 +29,17 @@ class Trainer:
 
         # Main Components
         self.envs = get_env(self.args.problem)  # a list of envs classes (different problems), remember to initialize it!
+
+        # Optionally train on a fixed dataset (e.g. AMAI npz instances) instead of on-the-fly generation
+        self.train_data, self.train_data_perm, self.train_data_cursor = None, None, 0
+        if self.trainer_params.get("train_set_path") is not None:
+            env = self.envs[0](**self.env_params)
+            self.train_data = env.load_dataset(self.trainer_params["train_set_path"], offset=0, num_samples=int(1e9), disable_print=False)
+            train_size = self.train_data[0].size(0)
+            assert self.train_data[0].size(1) == self.env_params["problem_size"], \
+                "problem_size ({}) does not match the loaded training data ({})".format(self.env_params["problem_size"], self.train_data[0].size(1))
+            print(">> Training on fixed dataset: {} ({} instances)".format(self.trainer_params["train_set_path"], train_size))
+
         self.model = SINGLEModel(**self.model_params)
         self.optimizer = Optimizer(self.model.parameters(), **self.optimizer_params['optimizer'])
         self.scheduler = Scheduler(self.optimizer, **self.optimizer_params['scheduler'])
@@ -212,6 +223,12 @@ class Trainer:
                     'result_log': self.result_log,
                 }
                 torch.save(checkpoint_dict, '{}/epoch-{}.pt'.format(self.log_path, epoch))
+                if not self.trainer_params.get("keep_all_checkpoints", False):
+                    # only keep the latest full checkpoint (plus the best-model files) to bound disk usage
+                    for f in os.listdir(self.log_path):
+                        m = re.fullmatch(r"epoch-(\d+)\.pt", f)
+                        if m and int(m.group(1)) != epoch:
+                            os.remove(os.path.join(self.log_path, f))
 
 
             # validation
@@ -220,7 +237,9 @@ class Trainer:
                 val_episodes, problem_size = self.env_params['val_episodes'], self.env_params['problem_size']
                 if self.env_params['val_dataset'] is not None:
                     paths = self.env_params['val_dataset']
-                    dir = ["../data/{}/".format(self.args.problem)] * len(paths)
+                    # entries may be direct file paths (e.g. npz datasets) or bare filenames under ../data/{problem}/
+                    dir = [os.path.dirname(p) if os.path.isfile(p) else "../data/{}/".format(self.args.problem) for p in paths]
+                    paths = [os.path.basename(p) if os.path.isfile(p) else p for p in paths]
                     val_envs = [get_env(prob)[0] for prob in val_problems] * len(paths)
                 else:
                     dir = [os.path.join("../data", prob) for prob in val_problems]
@@ -256,13 +275,32 @@ class Trainer:
                         except:
                             pass
 
+                    # Model selection consistent with the AMAI/LMask convention: monitor the
+                    # instance-level feasibility rate first, tie-break by feasible cost.
+                    ins_feas = 100. - infsb_rate[1] if isinstance(infsb_rate, (list, tuple)) else None
+                    score_cmp = score if score == score else float('inf')  # NaN (no feasible solution) -> inf
                     try:
-                        if score < best_val_score:
-                            best_val_score = score
-                            torch.save(self.model.state_dict(), os.path.join(self.log_path, "trained_model_val_best.pt"))
-                            print(">> Best model on validation dataset saved!")
-                    except:
-                        best_val_score = score
+                        if ins_feas is not None:
+                            is_better = (ins_feas > best_val_feas) or (ins_feas == best_val_feas and score_cmp < best_val_score)
+                        else:
+                            is_better = score_cmp < best_val_score
+                    except NameError:
+                        is_better = True
+                    if is_better:
+                        best_val_feas, best_val_score = ins_feas, score_cmp
+                        torch.save(self.model.state_dict(), os.path.join(self.log_path, "trained_model_val_best.pt"))
+                        print(">> Best model on validation dataset saved! (feasible rate: {}%, score: {})".format(ins_feas, score_cmp))
+
+    def _next_train_batch(self, batch_size):
+        # Epoch-style coverage of the fixed training set: iterate a shuffled permutation,
+        # reshuffle once exhausted (matches training on a fixed dataset as in AMAI/LMask).
+        train_size = self.train_data[0].size(0)
+        if self.train_data_perm is None or self.train_data_cursor + batch_size > train_size:
+            self.train_data_perm = torch.randperm(train_size)
+            self.train_data_cursor = 0
+        idx = self.train_data_perm[self.train_data_cursor: self.train_data_cursor + batch_size]
+        self.train_data_cursor += batch_size
+        return tuple(attr[idx] for attr in self.train_data)
 
     def _train_one_epoch(self, epoch):
         episode = 0
@@ -283,7 +321,10 @@ class Trainer:
                 batch_size = min(self.trainer_params['train_batch_size'], remaining)
 
                 env = random.sample(self.envs, 1)[0](**self.env_params)
-                data = env.get_random_problems(batch_size, self.env_params["problem_size"])
+                if self.train_data is not None:
+                    data = self._next_train_batch(batch_size)
+                else:
+                    data = env.get_random_problems(batch_size, self.env_params["problem_size"])
 
                 avg_score, avg_loss, infeasible, sl_output = self._train_one_batch(data, env, accumulation_step=accumulation_step)
 
@@ -828,6 +869,11 @@ class Trainer:
             remaining = val_episodes - episode
             bs = min(batch_size, remaining)
             data = env.load_dataset(os.path.join(dir, val_path), offset=episode, num_samples=bs)
+            if data[0].size(0) == 0:  # dataset smaller than val_episodes: stop early
+                print(">> Validation dataset exhausted after {} episodes.".format(episode))
+                val_episodes = episode
+                break
+            bs = data[0].size(0)
             no_aug, aug, infsb_rate, pred_list, label_list  = self._val_one_batch(data, env, aug_factor=8, eval_type="argmax")
             if isinstance(aug, list):
                 no_aug, no_aug_total_timeout, no_aug_timeout_nodes = no_aug

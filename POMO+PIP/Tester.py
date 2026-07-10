@@ -46,7 +46,7 @@ class Tester:
                 print(">> Load lazy PIP-D model from {}".format(checkpoint_fullname))
 
         # load dataset
-        if tester_params['test_set_path'] is None or tester_params['test_set_path'].endswith(".pkl"):
+        if tester_params['test_set_path'] is None or tester_params['test_set_path'].endswith((".pkl", ".npz")):
             self.data_dir = "./data"
         else:
             # for solving instances with CVRPLIB format
@@ -60,7 +60,7 @@ class Tester:
     def run(self):
         for env_class in self.envs:
             start_time = time.time()
-            if self.tester_params['test_set_path'] is None or self.tester_params['test_set_path'].endswith(".pkl"):
+            if self.tester_params['test_set_path'] is None or self.tester_params['test_set_path'].endswith((".pkl", ".npz")):
                 compute_gap = not (self.tester_params['test_set_path'] is not None and self.tester_params['test_set_opt_sol_path'] is None)
                 scores, aug_scores, sol_infeasible_rate, ins_infeasible_rate = self._test(env_class, compute_gap=compute_gap)
             else:
@@ -99,6 +99,11 @@ class Tester:
             remaining = test_num_episode - episode
             batch_size = min(self.tester_params['test_batch_size'], remaining)
             data = env.load_dataset(data_path, offset=episode, num_samples=batch_size)
+            if data[0].size(0) == 0:  # dataset smaller than test_episodes: stop early
+                print(">> Test dataset exhausted after {} episodes.".format(episode))
+                test_num_episode = episode
+                break
+            batch_size = data[0].size(0)
             score, aug_score, all_score, all_aug_score, sol_infeasible_rate, ins_infeasible_rate, no_aug_feasible, aug_feasible = self._test_one_batch(data, env)
             score_AM.update(score, batch_size)
             aug_score_AM.update(aug_score, batch_size)

@@ -17,7 +17,10 @@ class SINGLEModel(nn.Module):
 
         self.encoded_nodes = None
 
-        self.device = torch.device('cuda', torch.cuda.current_device()) if 'device' not in model_params.keys() else model_params['device']
+        if 'device' in model_params.keys():
+            self.device = model_params['device']
+        else:
+            self.device = torch.device('cuda', torch.cuda.current_device()) if torch.cuda.is_available() else torch.device('cpu')
         # shape: (batch, problem+1, EMBEDDING_DIM)
 
     def pre_forward(self, reset_state):
@@ -41,12 +44,21 @@ class SINGLEModel(nn.Module):
             tw_start = node_tw_start[:, :, None]
             tw_end = node_tw_end[:, :, None]
             # _, problem_size = node_tw_end.size()
+            service_time = reset_state.node_service_time[:, :, None] if self.model_params.get("include_service_time") else None
             if self.model_params["tw_normalize"]:
                 tw_end_max = node_tw_end[:, :1, None]
                 tw_start = tw_start / tw_end_max
                 tw_end = tw_end / tw_end_max
-            feature =  torch.cat((node_xy, tw_start, tw_end), dim=2)
-            # shape: (batch, problem, 4)
+                if service_time is not None:
+                    service_time = service_time / tw_end_max
+            if service_time is not None:
+                # include service times as node feature (needed for instances with non-zero
+                # service times, e.g. the AMAI datasets; consistent with AMAI/LMask embeddings)
+                feature = torch.cat((node_xy, tw_start, tw_end, service_time), dim=2)
+                # shape: (batch, problem, 5)
+            else:
+                feature =  torch.cat((node_xy, tw_start, tw_end), dim=2)
+                # shape: (batch, problem, 4)
         elif self.problem in ['TSPDL']:
             node_demand = reset_state.node_demand
             node_draft_limit = reset_state.node_draft_limit
@@ -186,7 +198,9 @@ class SINGLE_Encoder(nn.Module):
             self.embedding_depot = nn.Linear(2, embedding_dim)
         if self.problem in ["CVRP", "OVRP", "VRPB", "VRPL", "VRPBL", "OVRPB", "OVRPL", "OVRPBL"]:
             self.embedding_node = nn.Linear(3, embedding_dim)
-        elif self.problem in ["TSPTW", "TSPDL"]:
+        elif self.problem in ["TSPTW"]:
+            self.embedding_node = nn.Linear(5 if model_params.get("include_service_time") else 4, embedding_dim)
+        elif self.problem in ["TSPDL"]:
             self.embedding_node = nn.Linear(4, embedding_dim)
         elif self.problem in ["VRPTW", "OVRPTW", "VRPBTW", "VRPLTW", "OVRPBTW", "OVRPLTW", "VRPBLTW", "OVRPBLTW"]:
             self.embedding_node = nn.Linear(5, embedding_dim)

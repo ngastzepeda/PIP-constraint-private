@@ -12,7 +12,7 @@ from utils import *
 def args2dict(args):
     env_params = {"problem_size": args.problem_size, "pomo_size": args.pomo_size, "hardness": args.hardness,
                   "pomo_start": args.pomo_start, "val_dataset": args.val_dataset, "val_episodes": args.val_episodes,
-                  "k_sparse": args.k_sparse}
+                  "k_sparse": args.k_sparse, "check_depot_return": args.check_depot_return}
 
     model_params = {
                     # original parameters in MvMOE for POMO
@@ -21,6 +21,7 @@ def args2dict(args):
                     "qkv_dim": args.qkv_dim, "head_num": args.head_num, "logit_clipping": args.logit_clipping,
                     "ff_hidden_dim": args.ff_hidden_dim, "norm": args.norm, "norm_loc": args.norm_loc,
                     "eval_type": args.eval_type, "problem": args.problem,
+                    "include_service_time": args.include_service_time,
                     # PIP parameters
                     "pip_decoder": args.pip_decoder, "tw_normalize": args.tw_normalize,
                     "decision_boundary": args.decision_boundary, "detach_from_encoder": args.detach_from_encoder,
@@ -34,6 +35,9 @@ def args2dict(args):
     trainer_params = {"epochs": args.epochs, "train_episodes": args.train_episodes, "accumulation_steps": args.accumulation_steps,
                       "train_batch_size": args.train_batch_size, "validation_interval": args.validation_interval,
                       "validation_batch_size": args.validation_batch_size, "model_save_interval": args.model_save_interval,
+                      # fixed training dataset (e.g. AMAI npz instances); None = on-the-fly generation
+                      "train_set_path": args.train_set_path,
+                      "keep_all_checkpoints": args.keep_all_checkpoints,
                       # reward
                       "timeout_reward": args.timeout_reward, "timeout_node_reward": args.timeout_node_reward,
                       "fsb_dist_only": args.fsb_dist_only, "fsb_reward_only": args.fsb_reward_only,
@@ -63,7 +67,11 @@ if __name__ == "__main__":
     parser.add_argument('--problem_size', type=int, default=50)
     parser.add_argument('--pomo_size', type=int, default=50, help="the number of start node, should <= problem size")
     parser.add_argument('--pomo_start', type=bool, default=False)
-    parser.add_argument('--val_dataset', type=str, nargs='+', default=None, help="use the default one if set to None")
+    parser.add_argument('--val_dataset', type=str, nargs='+', default=None, help="use the default one if set to None; direct file paths (.pkl/.npz) are supported")
+    parser.add_argument('--train_set_path', type=str, default=None, help="train on a fixed dataset (.pkl/.npz) instead of on-the-fly instance generation")
+    parser.add_argument('--check_depot_return', action='store_true', help="enforce return to depot before the depot tw_end (AMAI/LMask TSPTW semantics)")
+    parser.add_argument('--include_service_time', action='store_true', help="include service times as node feature (for instances with non-zero service times)")
+    parser.add_argument('--keep_all_checkpoints', action='store_true', help="keep every epoch-N.pt instead of only the latest one")
 
     # model_params
     parser.add_argument('--embedding_dim', type=int, default=128)

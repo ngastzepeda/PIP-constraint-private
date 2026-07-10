@@ -9,7 +9,7 @@ from utils import *
 
 def args2dict(args):
     env_params = {"problem_size": args.problem_size, "pomo_size": args.pomo_size, "hardness": args.hardness,
-                  "pomo_start":args.pomo_start, "k_sparse": args.k_sparse}
+                  "pomo_start":args.pomo_start, "k_sparse": args.k_sparse, "check_depot_return": args.check_depot_return}
 
     model_params = {
                     # original parameters in MvMOE for POMO
@@ -18,6 +18,7 @@ def args2dict(args):
                     "qkv_dim": args.qkv_dim, "head_num": args.head_num, "logit_clipping": args.logit_clipping,
                     "ff_hidden_dim": args.ff_hidden_dim, "norm": args.norm, "norm_loc": args.norm_loc,
                     "eval_type": args.eval_type, "problem": args.problem,
+                    "include_service_time": args.include_service_time,
                     # PIP parameters
                     "pip_decoder": args.pip_decoder, "tw_normalize": args.tw_normalize,
                     "decision_boundary": args.decision_boundary, "detach_from_encoder": args.detach_from_encoder,
@@ -84,6 +85,8 @@ if __name__ == "__main__":
     parser.add_argument('--test_set_opt_sol_path', type=str, default=None, help="evaluate on default test dataset if None")
     parser.add_argument('--fsb_dist_only', type=bool, default=True)
     parser.add_argument('--output_best_tour_path', type=str, default=None)
+    parser.add_argument('--check_depot_return', action='store_true', help="enforce return to depot before the depot tw_end (AMAI/LMask TSPTW semantics)")
+    parser.add_argument('--include_service_time', action='store_true', help="include service times as node feature (must match the trained model)")
     # settings (e.g., GPU)
     parser.add_argument('--seed', type=int, default=2024)
     parser.add_argument('--no_cuda', action='store_true')
@@ -93,8 +96,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.test_set_path is None:
         args.test_set_path = f"../data/{args.problem}/{args.problem.lower()}{args.problem_size}_{args.hardness}.pkl"
-    if args.test_set_opt_sol_path is None:
-        args.test_set_opt_sol_path = f"../data/{args.problem}/lkh_{args.problem.lower()}{args.problem_size}_{args.hardness}.pkl"
+        if args.test_set_opt_sol_path is None:
+            # only default to the LKH solutions for the provided datasets; for custom test sets,
+            # the gap is computed only if --test_set_opt_sol_path is given explicitly
+            args.test_set_opt_sol_path = f"../data/{args.problem}/lkh_{args.problem.lower()}{args.problem_size}_{args.hardness}.pkl"
     pp.pprint(vars(args))
     env_params, model_params, tester_params = args2dict(args)
     seed_everything(args.seed)

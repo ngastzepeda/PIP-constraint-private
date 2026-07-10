@@ -62,7 +62,11 @@ class TSPTWEnv:
         self.problem_size = env_params['problem_size']
         self.pomo_size = env_params['pomo_size']
         self.loc_scaler = env_params['loc_scaler'] if 'loc_scaler' in env_params.keys() else None
-        self.device = torch.device('cuda', torch.cuda.current_device()) if 'device' not in env_params.keys() else env_params['device']
+        self.check_depot_return = env_params.get('check_depot_return', False)
+        if 'device' in env_params.keys():
+            self.device = env_params['device']
+        else:
+            self.device = torch.device('cuda', torch.cuda.current_device()) if torch.cuda.is_available() else torch.device('cpu')
 
         # Const @Load_Problem
         ####################################
@@ -123,7 +127,10 @@ class TSPTWEnv:
         else:
             node_xy, service_time, tw_start, tw_end = self.get_random_problems(batch_size, self.problem_size, max_tw_size=100)
 
-        if normalize:
+        # Skip normalization for pre-normalized data (e.g. loaded via load_npz_dataset, coords in [0, 1]):
+        # locs/tw/service times were already scaled by max_loc there, and the depot time window
+        # from the data must be kept (not recomputed below).
+        if normalize and node_xy.max() > 1.5:
             # Normalize as in DPDP (Kool et. al)
             loc_factor = 100
             node_xy = node_xy / loc_factor  # Normalize
@@ -365,6 +372,16 @@ class TSPTWEnv:
         # returning values
         done = self.finished.all()
         if done:
+            if self.check_depot_return:
+                # Consistency with AMAI/LMask TSPTW semantics: the vehicle must be back at the
+                # depot before the depot's tw_end. The original PIP data recomputes a non-binding
+                # depot window, so this check only matters for external (e.g. npz) instances.
+                return_arrival = self.current_time + (self.current_coord - self.node_xy[:, :1, :]).norm(p=2, dim=-1) / self.speed
+                # shape: (batch, pomo)
+                return_timeout = (return_arrival - self.node_tw_end[:, :1]).clamp(min=0)
+                self.timeout_list = torch.cat((self.timeout_list, return_timeout[:, :, None]), dim=2)
+                self.infeasible = self.infeasible + (return_timeout > 0)
+                self.step_state.infeasible = self.infeasible
             if not out_reward:
                 reward = -self._get_travel_distance()  # note the minus sign!
             else:
@@ -582,7 +599,9 @@ class TSPTWEnv:
         print("Save TSPTW dataset to {}".format(path))
 
     def load_dataset(self, path, offset=0, num_samples=10000, disable_print=True):
-        assert os.path.splitext(path)[1] == ".pkl", "Unsupported file type (.pkl needed)."
+        assert os.path.splitext(path)[1] in [".pkl", ".npz"], "Unsupported file type (.pkl or .npz needed)."
+        if path.endswith(".npz"):
+            return self.load_npz_dataset(path, offset=offset, num_samples=num_samples, disable_print=disable_print)
         with open(path, 'rb') as f:
             data = pickle.load(f)[offset: offset+num_samples]
             if not disable_print:
@@ -592,6 +611,30 @@ class TSPTWEnv:
 
         data = (node_xy, service_time, tw_start, tw_end)
         return data
+
+    def load_npz_dataset(self, path, offset=0, num_samples=10000, disable_print=True):
+        # AMAI-format instance file (keys: locs, service_times/service_time, time_windows, max_loc, ...).
+        # Normalization (dividing locs, time windows AND service times by max_loc) is done here,
+        # consistent with the AMAI2025/LMask codebases. load_problems() detects pre-normalized
+        # coordinates and skips its own normalization, so the depot time window from the data is kept.
+        data = np.load(path)
+        service_key = "service_times" if "service_times" in data else "service_time"
+        locs = torch.Tensor(data["locs"][offset: offset + num_samples])
+        service_time = torch.Tensor(data[service_key][offset: offset + num_samples])
+        time_windows = torch.Tensor(data["time_windows"][offset: offset + num_samples])
+        if service_time.dim() == 3 and service_time.size(-1) == 1:
+            service_time = service_time.squeeze(-1)
+        if "n_vehicles" in data:
+            assert (np.asarray(data["n_vehicles"]) == 1).all(), "TSPTW requires n_vehicles == 1"
+        if locs.max() > 1.5:  # not normalized yet
+            max_loc = torch.Tensor(np.asarray(data["max_loc"], dtype=np.float32)[offset: offset + num_samples]) \
+                if "max_loc" in data else torch.full((locs.size(0), 1), 100.)
+            locs = locs / max_loc.unsqueeze(-1)
+            time_windows = time_windows / max_loc.unsqueeze(-1)
+            service_time = service_time / max_loc
+        if not disable_print:
+            print(">> Load {} data ({}) from {}".format(locs.size(0), "npz", path))
+        return (locs, service_time, time_windows[:, :, 0], time_windows[:, :, 1])
 
     def get_random_problems(self, batch_size, problem_size, coord_factor=100, max_tw_size=100):
 
