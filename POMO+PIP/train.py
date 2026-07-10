@@ -151,7 +151,10 @@ if __name__ == "__main__":
     parser.add_argument("--multiple_gpu", type=bool, default=False)
     parser.add_argument('--occ_gpu', type=float, default=0., help="occupy (X)% GPU memory in advance, please use sparingly.")
     parser.add_argument('--tb_logger', type=bool, default=True)
-    parser.add_argument('--wandb_logger', type=bool, default=False)
+    parser.add_argument('--wandb_logger', action='store_true')
+    parser.add_argument('--wandb_project', type=str, default="PIP")
+    parser.add_argument('--wandb_name', type=str, default=None, help="wandb run name; defaults to the run dir name")
+    parser.add_argument('--wandb_id', type=str, default=None, help="resume an existing wandb run (recovered by submit_jobs.py)")
 
     args = parser.parse_args()
     seed_everything(args.seed)
@@ -197,7 +200,11 @@ if __name__ == "__main__":
     env_params, model_params, optimizer_params, trainer_params = args2dict(args)
 
     if args.wandb_logger:
-        wandb.init(project="PIP", name=name,
+        # dir=log_path keeps the wandb run folder inside the run dir, so submit_jobs.py
+        # can recover the run id on resume; `name` is undefined when resuming, use the dir name
+        wandb.init(project=args.wandb_project,
+                   name=args.wandb_name or os.path.basename(os.path.normpath(args.log_path)),
+                   dir=args.log_path, id=args.wandb_id, resume="allow",
                    config={**env_params, **model_params, **optimizer_params, **trainer_params})
     create_logger(filename="run_log", log_path=args.log_path)
     torch.set_printoptions(threshold=1000000)

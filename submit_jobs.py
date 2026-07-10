@@ -52,13 +52,13 @@ sizes = [20, 50, 100]
 
 VARIANTS = {
     # POMO+PIP/train.py (POMO* has the Lagrangian timeout reward on by default)
-    "pomo": dict(family="pomo", extra=[]),
-    "pip": dict(family="pomo", extra=["--generate_PI_mask"]),
-    "pipd": dict(family="pomo", extra=["--generate_PI_mask", "--pip_decoder"]),
+    "pomo": dict(family="pomo", label="pomo", extra=[]),
+    "pip": dict(family="pomo", label="pomo_pip", extra=["--generate_PI_mask"]),
+    "pipd": dict(family="pomo", label="pomo_pipd", extra=["--generate_PI_mask", "--pip_decoder"]),
     # AM+PIP/run.py
-    "am": dict(family="am", extra=[]),
-    "am_pip": dict(family="am", extra=["--generate_PI_mask"]),
-    "am_pipd": dict(family="am", extra=["--generate_PI_mask", "--pip_decoder"]),
+    "am": dict(family="am", label="am", extra=[]),
+    "am_pip": dict(family="am", label="am_pip", extra=["--generate_PI_mask"]),
+    "am_pipd": dict(family="am", label="am_pipd", extra=["--generate_PI_mask", "--pip_decoder"]),
 }
 
 
@@ -90,6 +90,11 @@ def build_params(ds_key, variant, seed):
     ds = DATASETS[ds_key]
     data_dir = f"../data/feas_tsptw/{ds['folder']}"
     tag = job_tag(ds_key, variant)
+    # dedicated wandb project for this baseline (same convention as LMask's "lmask_feasible");
+    # run names spell out base model + PIP variant + dataset, e.g. pomo_pipd_tsptw_n100_sw
+    # (all base models are the paper's starred versions, i.e. with the Lagrangian timeout reward)
+    wandb_params = ["--wandb_logger", "--wandb_project", "pip_feasible",
+                    "--wandb_name", f"{VARIANTS[variant]['label']}_tsptw_{ds_key}"]
     if VARIANTS[variant]["family"] == "pomo":
         params = [
             "--problem", "TSPTW",
@@ -109,7 +114,7 @@ def build_params(ds_key, variant, seed):
             "--seed", str(seed),
             # one log root per job so runs never collide and resume detection is unambiguous
             "--log_dir", f"./results/{tag}",
-        ] + VARIANTS[variant]["extra"]
+        ] + wandb_params + VARIANTS[variant]["extra"]
         if variant == "pipd":
             # PIP's PIP-D schedules are epoch-denominated defaults for 10k-sample epochs
             # (200/1000/50/50; N=100: 100/./20/.); rescaled /10 for 100k-sample epochs
@@ -132,7 +137,7 @@ def build_params(ds_key, variant, seed):
             "--output_dir", f"outputs/{tag}",
             "--log_dir", f"logs/{tag}",
             "--no_progress_bar",
-        ] + VARIANTS[variant]["extra"]
+        ] + wandb_params + VARIANTS[variant]["extra"]
         if variant == "am_pipd" and ds["epochs"] > 100:
             # AM+PIP-D defaults (10/10/2/5) are tuned for ~100-epoch runs; scale x5 for 500 epochs
             params += ["--simulation_stop_epoch", "50", "--pip_update_interval", "50",
@@ -164,11 +169,14 @@ def find_resume_info(ds_key, variant):
         return None
     epoch, ckpt = best
     ts_dir = ckpt.parent
+    # recover the wandb run id (wandb.init(dir=<run dir>) puts run-<datetime>-<id> inside it)
+    wandb_runs = sorted(ts_dir.glob("wandb/run-*"))
     info = dict(
         epoch=epoch,
         run_dir=f"./{ts_dir.relative_to(base)}",
         ckpt=f"./{ckpt.relative_to(base)}",
         pip_ckpt=None,
+        wandb_id=wandb_runs[-1].name.split("-")[-1] if wandb_runs else None,
     )
     # PIP-D: the auxiliary decoder is restored separately (default load_which_pip=train_fsb_bsf)
     if variant.endswith("pipd") and (ts_dir / "fsb_accuracy_bsf.pt").is_file():
@@ -185,6 +193,8 @@ def resume_params(variant, info):
         params = ["--resume", info["ckpt"]]
     if info["pip_ckpt"]:
         params += ["--pip_checkpoint", info["pip_ckpt"]]
+    if info["wandb_id"]:
+        params += ["--wandb_id", info["wandb_id"]]
     return params
 
 

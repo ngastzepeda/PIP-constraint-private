@@ -271,6 +271,12 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
             tb_logger.log_value('validation/val_infsb_rate', infsb_rate, epoch)
             tb_logger.log_value('validation/val_avg_timeout', avg_timeout, epoch)
             tb_logger.log_value('validation/val_avg_timeout_nodes', avg_timeout_nodes, epoch)
+        if opts.wandb_logger:
+            # epoch-level only (per-batch wandb logging caused crashes in past projects)
+            import wandb
+            wandb.log({'val/feasible_cost': float(avg_reward), 'val/infsb_rate': float(infsb_rate),
+                       'val/avg_timeout': float(avg_timeout), 'val/avg_timeout_nodes': float(avg_timeout_nodes),
+                       'epoch': epoch}, step=epoch)
 
         # Model selection consistent with the AMAI/LMask convention: monitor the instance-level
         # feasibility rate first, tie-break by feasible cost.

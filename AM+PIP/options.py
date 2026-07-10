@@ -78,6 +78,10 @@ def get_options(args=None):
     parser.add_argument('--load_path', help='Path to load model parameters and optimizer state from')
     parser.add_argument('--resume', help='Resume from previous checkpoint file')
     parser.add_argument('--no_tensorboard', action='store_true', help='Disable logging TensorBoard files')
+    parser.add_argument('--wandb_logger', action='store_true', help='Log epoch-level metrics to wandb')
+    parser.add_argument('--wandb_project', type=str, default="PIP")
+    parser.add_argument('--wandb_name', type=str, default=None, help='wandb run name; defaults to run_name')
+    parser.add_argument('--wandb_id', type=str, default=None, help='resume an existing wandb run (recovered by submit_jobs.py)')
     parser.add_argument('--no_progress_bar', action='store_true', default=False, help='Disable progress bar')
     parser.add_argument('--all_cuda_visible',action='store_true', help='Whether to use all available cuda')
     parser.add_argument('--CUDA_VISIBLE_ID', default="0",

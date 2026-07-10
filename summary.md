@@ -156,10 +156,26 @@ to confirm the validation metrics have plateaued.)
 ## 5. Running / resuming
 
 Environment: the upstream repo ships no package metadata (`pip install -e .` is not
-applicable); dependencies are listed in `requirements.txt` (added in this fork,
+applicable); dependencies are pinned in `requirements.txt` (added in this fork,
 trimmed from the README's install line — no torchvision/torchaudio/tensorflow
-needed). On the cluster, create `.venv` at the repo root (sourced by
-`start_job.sh`): `python -m venv .venv && pip install -r requirements.txt`.
+needed; versions verified on python 3.12). On the cluster
+(`module load lang/Python/3.12.3-GCCcore-13.2.0`, assumed by `start_job.sh` and
+`submit_jobs.sh`), create `.venv` at the repo root (sourced by `start_job.sh`):
+`python -m venv .venv && pip install -r requirements.txt`, then record the full
+environment with `pip freeze > requirements.lock.txt`.
+
+Logging: all jobs log to **wandb project `pip_feasible`** (one dedicated project
+for this baseline, same convention as LMask's `lmask_feasible`), run names spell
+out base model + PIP variant + dataset:
+`{pomo|am}[_pip|_pipd]_tsptw_{n20|n50|n100_sw|n100_mw}` (e.g.
+`pomo_pipd_tsptw_n100_sw`; all base models are the paper's starred versions, i.e.
+with the Lagrangian timeout reward); tensorboard files are additionally written
+into each run dir. Epoch-level validation metrics only (feasible cost, instance
+infeasibility rate, timeout stats) — no per-batch wandb logging. The wandb
+integration was fixed/added in this fork: upstream POMO's `wandb.init` crashed on
+resumed runs and upstream AM had no wandb support; runs now place their wandb
+folder inside the run dir so `submit_jobs.py` recovers the run id on resume and
+the wandb curve continues instead of starting a new run.
 
 ```shell
 bash submit_jobs.sh                                # reconcile all 24 jobs

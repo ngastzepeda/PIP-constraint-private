@@ -33,6 +33,13 @@ def run(opts):
     with open(os.path.join(opts.save_dir, "args.json"), 'w') as f:
         json.dump(vars(opts), f, indent=True)
 
+    if opts.wandb_logger:
+        import wandb
+        # dir=save_dir keeps the wandb run folder inside the run dir, so submit_jobs.py
+        # can recover the run id on resume
+        wandb.init(project=opts.wandb_project, name=opts.wandb_name or opts.run_name,
+                   dir=opts.save_dir, id=opts.wandb_id, resume="allow", config=vars(opts))
+
     # Set the device
     opts.device = torch.device("cuda:0" if opts.use_cuda else "cpu")
 
