@@ -115,6 +115,11 @@ exceptions marked *(default changed)*.
   runs only)*: a resumed run continues up to `n_epochs` instead of training
   `n_epochs` further, so PIP-D's epoch schedules stay consistent across restarts.
 * Bug fixes: rollout-baseline resume crashed for tsptw (dict-indexing a tensor);
+  rollout-baseline resume crashed for PIP-D runs (upstream bug: the baseline model
+  is checkpointed as the `[am_model, pip_model]` list for PIP-D, but
+  `RolloutBaseline.load_state_dict` assumed a single module — only triggered on
+  the first-ever `am_pipd` resume; the loader now takes the AM half, matching
+  fresh-run construction);
   `torch.load` needed `weights_only=False` on torch ≥ 2.6 (also applied to all
   checkpoint/dataset loads in POMO+PIP and GFACS+PIP — the PIP-D checkpoints
   store accuracies as numpy scalars, which the torch ≥ 2.6 weights-only

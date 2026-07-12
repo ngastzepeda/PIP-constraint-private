@@ -269,7 +269,13 @@ class RolloutBaseline(Baseline):
     def load_state_dict(self, state_dict):
         # We make it such that it works whether model was saved as data parallel or not
         load_model = copy.deepcopy(self.model)
-        get_inner_model(load_model).load_state_dict(get_inner_model(state_dict['model']).state_dict())
+        saved_model = state_dict['model']
+        if isinstance(saved_model, list):
+            # PIP-D runs wrap the model as [am_model, pip_model] (run.py), so a baseline
+            # updated after that wrapping was checkpointed as a list; the baseline weights
+            # are the AM half. The pip model is restored separately via --pip_checkpoint.
+            saved_model = saved_model[0]
+        get_inner_model(load_model).load_state_dict(get_inner_model(saved_model).state_dict())
         self._update_model(load_model, state_dict['epoch'], state_dict['dataset'])
 
 
