@@ -21,6 +21,9 @@ class Trainer:
         self.device = args.device
         self.log_path = args.log_path
         self.result_log = {"val_score": [], "val_gap": [], "val_infsb_rate": []}
+        # validation data / opt-sol files, each read once per run and served from memory
+        # afterwards, so validation does not depend on the files staying available on disk
+        self._val_data_cache = {}
         if args.tb_logger:
             self.tb_logger = TbLogger(self.log_path)
         else:
@@ -865,10 +868,14 @@ class Trainer:
         elif self.trainer_params["use_real_PI_mask"] and self.model_params["generate_PI_mask"]:
             print(">> Use PI masking for validation...")
 
+        val_file = os.path.join(dir, val_path)
+        if val_file not in self._val_data_cache:
+            self._val_data_cache[val_file] = env.load_dataset(val_file, offset=0, num_samples=int(1e9))
+        val_data = self._val_data_cache[val_file]
         while episode < val_episodes:
             remaining = val_episodes - episode
             bs = min(batch_size, remaining)
-            data = env.load_dataset(os.path.join(dir, val_path), offset=episode, num_samples=bs)
+            data = tuple(t[episode: episode + bs] for t in val_data)
             if data[0].size(0) == 0:  # dataset smaller than val_episodes: stop early
                 print(">> Validation dataset exhausted after {} episodes.".format(episode))
                 val_episodes = episode
@@ -935,7 +942,9 @@ class Trainer:
         compute_gap = os.path.exists(sol_path)
 
         if compute_gap:
-            opt_sol = load_dataset(sol_path, disable_print=True)[: val_episodes]
+            if sol_path not in self._val_data_cache:
+                self._val_data_cache[sol_path] = load_dataset(sol_path, disable_print=True)
+            opt_sol = self._val_data_cache[sol_path][: val_episodes]
             # grid_factor = 1.
             grid_factor = 100. if self.args.problem == "TSPTW" else 1.
             opt_sol = torch.tensor([i[0]/grid_factor for i in opt_sol])

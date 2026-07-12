@@ -83,6 +83,14 @@ exceptions marked *(default changed)*.
 * Robustness fixes: CPU fallback when CUDA is unavailable; graceful stop when
   val/test files are smaller than the requested episode count; optimality-gap
   computation only runs when a solution file actually exists.
+* **Data files are read once per process and served from memory afterwards**
+  (POMO: validation/opt-sol cache in `Trainer`; AM: fixed-train-set cache shared
+  between `train_epoch` and the rollout baseline). Upstream re-opened these files
+  during training (POMO: every validation batch; AM: every rollout-baseline
+  update), so a data file becoming unavailable on the cluster's scratch
+  filesystem killed 15h runs mid-training (observed July 2026: a Lustre metadata
+  failure made `data/feas_tsptw/` unstat-able and crashed the running jobs at
+  their next file access).
 
 ### POMO+PIP specifics
 * `--check_depot_return` (env flag): return-leg timeout + infeasibility at rollout
@@ -99,7 +107,10 @@ exceptions marked *(default changed)*.
   upstream data, whose recomputed depot window is non-binding for
   otherwise-feasible tours).
 * The rollout baseline's comparison dataset is drawn from the fixed training file
-  (random slice) instead of the random generator when `--train_set_path` is set.
+  (random slice) instead of the random generator when `--train_set_path` is set;
+  baseline updates slice the in-memory copy (`SubsetDataset` in
+  `reinforce_baselines.py`, items cloned so epoch checkpoints stay small — see
+  the read-once bullet under "Both implementations").
 * `--n_epochs` is now the **absolute** target epoch *(default changed for resumed
   runs only)*: a resumed run continues up to `n_epochs` instead of training
   `n_epochs` further, so PIP-D's epoch schedules stay consistent across restarts.

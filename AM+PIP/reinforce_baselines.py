@@ -141,6 +141,24 @@ class CriticBaseline(Baseline):
         self.critic.load_state_dict({**self.critic.state_dict(), **critic_state_dict})
 
 
+class SubsetDataset(Dataset):
+    """Materialized contiguous slice of a dataset. Items are cloned so that pickling
+    (baseline state in the epoch checkpoints) does not serialize the full source
+    dataset's storage along with the tensor views."""
+
+    def __init__(self, dataset, offset, num_samples):
+        self.items = [
+            {k: v.clone() for k, v in item.items()} if isinstance(item, dict) else item.clone()
+            for item in (dataset[i] for i in range(offset, min(offset + num_samples, len(dataset))))
+        ]
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, idx):
+        return self.items[idx]
+
+
 class RolloutBaseline(Baseline):
 
     def __init__(self, model, problem, opts, epoch=0):
@@ -166,13 +184,19 @@ class RolloutBaseline(Baseline):
         if dataset is None:
             if getattr(self.opts, 'train_set_path', None) is not None:
                 # fixed-dataset training: draw the baseline evaluation dataset from the same fixed
-                # instance distribution (random slice of the training file) instead of the generator
-                total = len(self.problem.make_dataset(
-                    filename=self.opts.train_set_path, size=self.opts.graph_size, num_samples=int(1e9)))
-                offset = torch.randint(0, max(total - self.opts.val_size, 1), (1,)).item()
-                self.dataset = self.problem.make_dataset(
-                    filename=self.opts.train_set_path, size=self.opts.graph_size,
-                    num_samples=self.opts.val_size, offset=offset)
+                # instance distribution (random slice of the training file) instead of the generator.
+                # The file is read once per process and cached on opts (shared with train_epoch);
+                # later baseline updates slice the in-memory copy, so training does not depend on
+                # the data file staying available on disk for the whole run.
+                if getattr(self.opts, '_fixed_train_dataset', None) is None:
+                    self.opts._fixed_train_dataset = self.problem.make_dataset(
+                        filename=self.opts.train_set_path, size=self.opts.graph_size,
+                        num_samples=int(1e9), hardness=self.opts.hardness)
+                    print(">> Loaded fixed dataset: {} ({} instances)".format(
+                        self.opts.train_set_path, len(self.opts._fixed_train_dataset)))
+                fixed = self.opts._fixed_train_dataset
+                offset = torch.randint(0, max(len(fixed) - self.opts.val_size, 1), (1,)).item()
+                self.dataset = SubsetDataset(fixed, offset, self.opts.val_size)
             else:
                 self.dataset = self.problem.make_dataset(
                     size=self.opts.graph_size, num_samples=self.opts.val_size, hardness=self.opts.hardness)
