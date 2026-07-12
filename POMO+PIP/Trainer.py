@@ -76,7 +76,7 @@ class Trainer:
 
             if args.pip_checkpoint:
                 checkpoint_fullname = args.pip_checkpoint
-                checkpoint = torch.load(checkpoint_fullname, map_location=self.device)
+                checkpoint = torch.load(checkpoint_fullname, map_location=self.device, weights_only=False)
                 try:
                     self.lazy_model.load_state_dict(checkpoint['model_state_dict'], strict=True)
                 except:
@@ -99,7 +99,7 @@ class Trainer:
         self.start_epoch = 1
         if args.checkpoint is not None:
             checkpoint_fullname = args.checkpoint
-            checkpoint = torch.load(checkpoint_fullname, map_location=self.device)
+            checkpoint = torch.load(checkpoint_fullname, map_location=self.device, weights_only=False)
             try:
                 self.model.load_state_dict(checkpoint['model_state_dict'], strict=True)
             except:
@@ -133,7 +133,7 @@ class Trainer:
                                            "train_infsb_bsf": "infsb_accuracy_bsf.pt",
                                            "train_accuracy_bsf": "accuracy_bsf.pt"}
                         checkpoint_fullname = os.path.join(self.log_path, pip_checkpoint[self.trainer_params["load_which_pip"]])
-                        checkpoint = torch.load(checkpoint_fullname, map_location=self.device)
+                        checkpoint = torch.load(checkpoint_fullname, map_location=self.device, weights_only=False)
                         try:
                             self.lazy_model.load_state_dict(checkpoint['model_state_dict'], strict=True)
                         except:

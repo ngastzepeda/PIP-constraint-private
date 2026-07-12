@@ -709,7 +709,7 @@ def train(
         elif args.dual_decoder_type == "AR":
             dual_decoder = AR_ParNet().to(DEVICE)
     if pretrained:
-        net.load_state_dict(torch.load(pretrained, map_location=DEVICE))
+        net.load_state_dict(torch.load(pretrained, map_location=DEVICE, weights_only=False))
     if args.dual_decoder:
         optimizer_net = torch.optim.AdamW(net.parameters(), lr=lr)
         optimizer_dual_decoder = torch.optim.AdamW(dual_decoder.parameters(), lr=lr)
@@ -745,7 +745,7 @@ def train(
                                "train_infsb_bsf": "infsb_accuracy_bsf.pt",
                                "train_accuracy_bsf": "accuracy_bsf.pt"}
             checkpoint_fullname = os.path.join(savepath, lazy_checkpoint[args.load_which_piggy])
-            lazy_model_param = torch.load(checkpoint_fullname, map_location=DEVICE)
+            lazy_model_param = torch.load(checkpoint_fullname, map_location=DEVICE, weights_only=False)
             print('  [*] Loading SL lazy model from {} [Accuracy: {:.4f}%; Infeasible: {:.4f}%; Feasible: {:.4f}%]'.format(checkpoint_fullname, lazy_model_param['accuracy'], lazy_model_param['infsb_accuracy'] ,lazy_model_param['fsb_accuracy']))
             lazy_model.load_state_dict(lazy_model_param["model_state_dict"])
             lazy_model.eval()

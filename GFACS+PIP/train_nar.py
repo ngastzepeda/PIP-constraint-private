@@ -572,7 +572,7 @@ def train(
     #     elif args.dual_decoder_type == "AR":
     #         dual_decoder = AR_ParNet().to(DEVICE)
     if pretrained:
-        net.load_state_dict(torch.load(pretrained, map_location=DEVICE))
+        net.load_state_dict(torch.load(pretrained, map_location=DEVICE, weights_only=False))
     optimizer = torch.optim.AdamW(net.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs, eta_min=lr * 0.1)
 
@@ -601,7 +601,7 @@ def train(
                                "train_infsb_bsf": "infsb_accuracy_bsf.pt",
                                "train_accuracy_bsf": "accuracy_bsf.pt"}
             checkpoint_fullname = os.path.join(savepath, lazy_checkpoint[args.load_which_piggy])
-            lazy_model.load_state_dict(torch.load(checkpoint_fullname, map_location=DEVICE))
+            lazy_model.load_state_dict(torch.load(checkpoint_fullname, map_location=DEVICE, weights_only=False))
         start = time.time()
         train_epoch(
             n_nodes,

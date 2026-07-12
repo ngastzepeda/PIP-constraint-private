@@ -115,7 +115,10 @@ exceptions marked *(default changed)*.
   runs only)*: a resumed run continues up to `n_epochs` instead of training
   `n_epochs` further, so PIP-D's epoch schedules stay consistent across restarts.
 * Bug fixes: rollout-baseline resume crashed for tsptw (dict-indexing a tensor);
-  `torch.load` needed `weights_only=False` on torch ≥ 2.6; two hardcoded `.cuda()`
+  `torch.load` needed `weights_only=False` on torch ≥ 2.6 (also applied to all
+  checkpoint/dataset loads in POMO+PIP and GFACS+PIP — the PIP-D checkpoints
+  store accuracies as numpy scalars, which the torch ≥ 2.6 weights-only
+  unpickler rejects, so resuming `pipd` runs crashed); two hardcoded `.cuda()`
   calls broke CPU execution; `--val_dataset`/`--val_solution_path` were
   unconditionally overwritten by the hardness defaults.
 

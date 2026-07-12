@@ -201,7 +201,7 @@ def load_test_dataset(val_dataset, n_node, k_sparse, device):
         raise FileNotFoundError(
             f"File {filename} not found, please download the test dataset from the original repository."
         )
-    dataset = torch.load(filename, map_location=device)
+    dataset = torch.load(filename, map_location=device, weights_only=False)
 
     test_list = []
     for i in range(len(dataset)):
@@ -218,7 +218,7 @@ def load_val_dataset(n_node, tw_type, tw_duration, k_sparse, device, start_node 
         dataset = torch.cat([tw, position, dist], dim=-1)
         torch.save(dataset, filename)
     else:
-        dataset = torch.load(filename, map_location=device)
+        dataset = torch.load(filename, map_location=device, weights_only=False)
 
     val_list = []
     for i in range(len(dataset)):

@@ -15,7 +15,7 @@ class Tester:
         # ENV, MODEL, & Load checkpoint
         self.envs = get_env(self.args.problem)  # Env Class
         self.device = args.device
-        checkpoint = torch.load(args.checkpoint, map_location=self.device)
+        checkpoint = torch.load(args.checkpoint, map_location=self.device, weights_only=False)
         self.model = SINGLEModel(**self.model_params)
         num_param(self.model)
         try:
@@ -33,7 +33,7 @@ class Tester:
 
         if args.pip_checkpoint and self.tester_params["use_predicted_PI_mask"]:
             checkpoint_fullname = args.pip_checkpoint
-            checkpoint = torch.load(checkpoint_fullname, map_location=self.device)
+            checkpoint = torch.load(checkpoint_fullname, map_location=self.device, weights_only=False)
             try:
                 self.lazy_model.load_state_dict(checkpoint['model_state_dict'], strict=True)
             except:

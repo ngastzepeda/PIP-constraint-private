@@ -213,7 +213,7 @@ def main(val_dataset, ckpt_path, n_nodes, k_sparse, size=None, n_ants=100, n_ite
 
     if ckpt_path is not None:
         net = Net(gfn=True, Z_out_dim=2 if guided_exploration else 1).to(DEVICE)
-        checkpoint = torch.load(ckpt_path, map_location=DEVICE)
+        checkpoint = torch.load(ckpt_path, map_location=DEVICE, weights_only=False)
         try:
             net.load_state_dict(checkpoint)
         except:

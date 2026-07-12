@@ -93,7 +93,7 @@ def main(ckpt_path, n_nodes, k_sparse_factor, n_ants=100, n_iter=10, guided_expl
 
     if ckpt_path is not None:
         net = Net(gfn=True, Z_out_dim=2 if guided_exploration else 1).to(DEVICE)
-        net.load_state_dict(torch.load(ckpt_path, map_location=DEVICE))
+        net.load_state_dict(torch.load(ckpt_path, map_location=DEVICE, weights_only=False))
     else:
         net = None
     results_list, duration = test(test_list, net, n_ants, t_aco, int_dist_list)
