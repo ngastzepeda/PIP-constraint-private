@@ -119,7 +119,12 @@ exceptions marked *(default changed)*.
   is checkpointed as the `[am_model, pip_model]` list for PIP-D, but
   `RolloutBaseline.load_state_dict` assumed a single module — only triggered on
   the first-ever `am_pipd` resume; the loader now takes the AM half, matching
-  fresh-run construction);
+  fresh-run construction); resumed AM PIP-D runs crashed at the next lazy-PIP
+  load epoch because AM (unlike POMO, which resumes into the old run dir)
+  creates a fresh `save_dir` on resume that has no `fsb_accuracy_bsf.pt` yet —
+  `run.py` now falls back to the `--pip_checkpoint` directory, and
+  `submit_jobs.py` likewise falls back to an earlier run dir's fsb checkpoint
+  when the newest run dir lacks one;
   `torch.load` needed `weights_only=False` on torch ≥ 2.6 (also applied to all
   checkpoint/dataset loads in POMO+PIP and GFACS+PIP — the PIP-D checkpoints
   store accuracies as numpy scalars, which the torch ≥ 2.6 weights-only

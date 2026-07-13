@@ -41,12 +41,30 @@ default_seed = 2023  # PIP's default
 # is already constant; POMO's default milestone (epoch 9001) never fires within <=500 epochs.
 # n20/n50 have a single dataset (window type None); n100 has small/medium windows (sw/mw).
 DATASETS = {
-    "n20": dict(folder="n20_amai", size=20, tws=None, problem_size=21, pomo_size=20, epochs=100),
-    "n50": dict(folder="n50_amai", size=50, tws=None, problem_size=51, pomo_size=50, epochs=500),
-    "n100_sw": dict(folder="n100_amai_sw", size=100, tws="sw", problem_size=101, pomo_size=100,
-                    epochs=500, big=True),
-    "n100_mw": dict(folder="n100_amai_mw", size=100, tws="mw", problem_size=101, pomo_size=100,
-                    epochs=500, big=True),
+    "n20": dict(
+        folder="n20_amai", size=20, tws=None, problem_size=21, pomo_size=20, epochs=100
+    ),
+    "n50": dict(
+        folder="n50_amai", size=50, tws=None, problem_size=51, pomo_size=50, epochs=500
+    ),
+    "n100_sw": dict(
+        folder="n100_amai_sw",
+        size=100,
+        tws="sw",
+        problem_size=101,
+        pomo_size=100,
+        epochs=500,
+        big=True,
+    ),
+    "n100_mw": dict(
+        folder="n100_amai_mw",
+        size=100,
+        tws="mw",
+        problem_size=101,
+        pomo_size=100,
+        epochs=500,
+        big=True,
+    ),
 }
 sizes = [20, 50, 100]
 
@@ -54,11 +72,15 @@ VARIANTS = {
     # POMO+PIP/train.py (POMO* has the Lagrangian timeout reward on by default)
     "pomo": dict(family="pomo", label="pomo", extra=[]),
     "pip": dict(family="pomo", label="pomo_pip", extra=["--generate_PI_mask"]),
-    "pipd": dict(family="pomo", label="pomo_pipd", extra=["--generate_PI_mask", "--pip_decoder"]),
+    "pipd": dict(
+        family="pomo", label="pomo_pipd", extra=["--generate_PI_mask", "--pip_decoder"]
+    ),
     # AM+PIP/run.py
     "am": dict(family="am", label="am", extra=[]),
     "am_pip": dict(family="am", label="am_pip", extra=["--generate_PI_mask"]),
-    "am_pipd": dict(family="am", label="am_pipd", extra=["--generate_PI_mask", "--pip_decoder"]),
+    "am_pipd": dict(
+        family="am", label="am_pipd", extra=["--generate_PI_mask", "--pip_decoder"]
+    ),
 }
 
 
@@ -79,7 +101,9 @@ def queued_job_names():
     try:
         out = subprocess.run(
             ["squeue", "--me", "--noheader", "--format=%j"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
         return {line.strip() for line in out.splitlines() if line.strip()}
     except (FileNotFoundError, subprocess.CalledProcessError):
@@ -93,55 +117,113 @@ def build_params(ds_key, variant, seed):
     # dedicated wandb project for this baseline (same convention as LMask's "lmask_feasible");
     # run names spell out base model + PIP variant + dataset, e.g. pomo_pipd_tsptw_n100_sw
     # (all base models are the paper's starred versions, i.e. with the Lagrangian timeout reward)
-    wandb_params = ["--wandb_logger", "--wandb_project", "pip_feasible",
-                    "--wandb_name", f"{VARIANTS[variant]['label']}_tsptw_{ds_key}"]
+    wandb_params = [
+        "--wandb_logger",
+        "--wandb_project",
+        "pip_feasible",
+        "--wandb_name",
+        f"{VARIANTS[variant]['label']}_tsptw_{ds_key}",
+    ]
     if VARIANTS[variant]["family"] == "pomo":
-        params = [
-            "--problem", "TSPTW",
-            "--problem_size", str(ds["problem_size"]),
-            "--pomo_size", str(ds["pomo_size"]),
-            "--train_set_path", f"{data_dir}/train_100k.npz",
-            "--val_dataset", f"{data_dir}/val_1k.npz",
-            "--val_episodes", "1000",
-            "--check_depot_return",
-            "--include_service_time",
-            # one epoch = one full pass over the fixed 100k (same epoch counter as AMAI/AM)
-            "--train_episodes", "100000",
-            "--epochs", str(ds["epochs"]),
-            # validate + checkpoint every epoch = every 100k samples = AMAI's cadence
-            "--validation_interval", "1",
-            "--model_save_interval", "1",
-            "--seed", str(seed),
-            # one log root per job so runs never collide and resume detection is unambiguous
-            "--log_dir", f"./results/{tag}",
-        ] + wandb_params + VARIANTS[variant]["extra"]
+        params = (
+            [
+                "--problem",
+                "TSPTW",
+                "--problem_size",
+                str(ds["problem_size"]),
+                "--pomo_size",
+                str(ds["pomo_size"]),
+                "--train_set_path",
+                f"{data_dir}/train_100k.npz",
+                "--val_dataset",
+                f"{data_dir}/val_1k.npz",
+                "--val_episodes",
+                "1000",
+                "--check_depot_return",
+                "--include_service_time",
+                # one epoch = one full pass over the fixed 100k (same epoch counter as AMAI/AM)
+                "--train_episodes",
+                "100000",
+                "--epochs",
+                str(ds["epochs"]),
+                # validate + checkpoint every epoch = every 100k samples = AMAI's cadence
+                "--validation_interval",
+                "1",
+                "--model_save_interval",
+                "1",
+                "--seed",
+                str(seed),
+                # one log root per job so runs never collide and resume detection is unambiguous
+                "--log_dir",
+                f"./results/{tag}",
+            ]
+            + wandb_params
+            + VARIANTS[variant]["extra"]
+        )
         if variant == "pipd":
             # PIP's PIP-D schedules are epoch-denominated defaults for 10k-sample epochs
             # (200/1000/50/50; N=100: 100/./20/.); rescaled /10 for 100k-sample epochs
             if ds.get("big"):
-                params += ["--simulation_stop_epoch", "10", "--pip_update_interval", "100",
-                           "--pip_update_epoch", "2", "--pip_last_growup", "5"]
+                params += [
+                    "--simulation_stop_epoch",
+                    "10",
+                    "--pip_update_interval",
+                    "100",
+                    "--pip_update_epoch",
+                    "2",
+                    "--pip_last_growup",
+                    "5",
+                ]
             else:
-                params += ["--simulation_stop_epoch", "20", "--pip_update_interval", "100",
-                           "--pip_update_epoch", "5", "--pip_last_growup", "5"]
+                params += [
+                    "--simulation_stop_epoch",
+                    "20",
+                    "--pip_update_interval",
+                    "100",
+                    "--pip_update_epoch",
+                    "5",
+                    "--pip_last_growup",
+                    "5",
+                ]
     else:
-        params = [
-            "--problem", "tsptw",
-            "--graph_size", str(ds["problem_size"]),
-            "--train_set_path", f"{data_dir}/train_100k.npz",
-            "--val_dataset", f"{data_dir}/val_1k.npz",
-            "--val_size", "1000",
-            "--include_service_time",
-            "--n_epochs", str(ds["epochs"]),
-            "--seed", str(seed),
-            "--output_dir", f"outputs/{tag}",
-            "--log_dir", f"logs/{tag}",
-            "--no_progress_bar",
-        ] + wandb_params + VARIANTS[variant]["extra"]
+        params = (
+            [
+                "--problem",
+                "tsptw",
+                "--graph_size",
+                str(ds["problem_size"]),
+                "--train_set_path",
+                f"{data_dir}/train_100k.npz",
+                "--val_dataset",
+                f"{data_dir}/val_1k.npz",
+                "--val_size",
+                "1000",
+                "--include_service_time",
+                "--n_epochs",
+                str(ds["epochs"]),
+                "--seed",
+                str(seed),
+                "--output_dir",
+                f"outputs/{tag}",
+                "--log_dir",
+                f"logs/{tag}",
+                "--no_progress_bar",
+            ]
+            + wandb_params
+            + VARIANTS[variant]["extra"]
+        )
         if variant == "am_pipd" and ds["epochs"] > 100:
             # AM+PIP-D defaults (10/10/2/5) are tuned for ~100-epoch runs; scale x5 for 500 epochs
-            params += ["--simulation_stop_epoch", "50", "--pip_update_interval", "50",
-                       "--pip_update_epoch", "10", "--pip_last_growup", "25"]
+            params += [
+                "--simulation_stop_epoch",
+                "50",
+                "--pip_update_interval",
+                "50",
+                "--pip_update_epoch",
+                "10",
+                "--pip_last_growup",
+                "25",
+            ]
     return params
 
 
@@ -157,7 +239,9 @@ def find_resume_info(ds_key, variant):
     """
     family = VARIANTS[variant]["family"]
     base = POMO_DIR if family == "pomo" else AM_DIR
-    run_root = base / ("results" if family == "pomo" else "outputs") / job_tag(ds_key, variant)
+    run_root = (
+        base / ("results" if family == "pomo" else "outputs") / job_tag(ds_key, variant)
+    )
     if not run_root.is_dir():
         return None
     best = None
@@ -179,8 +263,17 @@ def find_resume_info(ds_key, variant):
         wandb_id=wandb_runs[-1].name.split("-")[-1] if wandb_runs else None,
     )
     # PIP-D: the auxiliary decoder is restored separately (default load_which_pip=train_fsb_bsf)
-    if variant.endswith("pipd") and (ts_dir / "fsb_accuracy_bsf.pt").is_file():
-        info["pip_ckpt"] = f"./{(ts_dir / 'fsb_accuracy_bsf.pt').relative_to(base)}"
+    if variant.endswith("pipd"):
+        fsb = ts_dir / "fsb_accuracy_bsf.pt"
+        if not fsb.is_file():
+            # a crashed AM resume leaves a fresh run dir that has epoch checkpoints but no
+            # bsf files yet; fall back to the newest fsb checkpoint of an earlier run dir
+            candidates = sorted(
+                run_root.rglob("fsb_accuracy_bsf.pt"), key=lambda p: p.stat().st_mtime
+            )
+            fsb = candidates[-1] if candidates else None
+        if fsb is not None:
+            info["pip_ckpt"] = f"./{fsb.relative_to(base)}"
     return info
 
 
@@ -224,39 +317,73 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--sizes", type=int, nargs="+", default=sizes, choices=sizes,
-                        help="Problem sizes to submit (same convention as the AMAI/skillvrp scripts).")
-    parser.add_argument("--tws", type=str, nargs="+", default=None, choices=["sw", "mw"],
-                        help="Filter n100 window types (no effect on n20/n50).")
-    parser.add_argument("--variants", type=str, nargs="+",
-                        default=list(VARIANTS), choices=list(VARIANTS))
+    parser.add_argument(
+        "--sizes",
+        type=int,
+        nargs="+",
+        default=sizes,
+        choices=sizes,
+        help="Problem sizes to submit (same convention as the AMAI/skillvrp scripts).",
+    )
+    parser.add_argument(
+        "--tws",
+        type=str,
+        nargs="+",
+        default=None,
+        choices=["sw", "mw"],
+        help="Filter n100 window types (no effect on n20/n50).",
+    )
+    parser.add_argument(
+        "--variants",
+        type=str,
+        nargs="+",
+        default=list(VARIANTS),
+        choices=list(VARIANTS),
+    )
     parser.add_argument("--seed", type=int, default=default_seed)
-    parser.add_argument("--dry_run", action="store_true",
-                        help="Print sbatch commands without submitting.")
+    parser.add_argument(
+        "--dry_run",
+        action="store_true",
+        help="Print sbatch commands without submitting.",
+    )
     mode_group = parser.add_mutually_exclusive_group()
-    mode_group.add_argument("--resume", action="store_true",
-                            help="Only resume crashed runs (highest epoch-*.pt); jobs "
-                                 "without a checkpoint or already at the target epochs "
-                                 "are skipped. Default (no flag) is reconcile: resume "
-                                 "crashed, start missing, skip complete.")
-    mode_group.add_argument("--fresh", action="store_true",
-                            help="Submit every selected job as a brand-new run, "
-                                 "ignoring existing checkpoints entirely.")
+    mode_group.add_argument(
+        "--resume",
+        action="store_true",
+        help="Only resume crashed runs (highest epoch-*.pt); jobs "
+        "without a checkpoint or already at the target epochs "
+        "are skipped. Default (no flag) is reconcile: resume "
+        "crashed, start missing, skip complete.",
+    )
+    mode_group.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Submit every selected job as a brand-new run, "
+        "ignoring existing checkpoints entirely.",
+    )
     args = parser.parse_args()
 
-    selected = [k for k, ds in DATASETS.items()
-                if ds["size"] in args.sizes and (ds["tws"] is None or args.tws is None or ds["tws"] in args.tws)]
+    selected = [
+        k
+        for k, ds in DATASETS.items()
+        if ds["size"] in args.sizes
+        and (ds["tws"] is None or args.tws is None or ds["tws"] in args.tws)
+    ]
     jobs = [(d, v) for d in selected for v in args.variants]
     mode = "resume" if args.resume else "fresh" if args.fresh else "reconcile"
-    print(f"Total jobs: {len(jobs)} (sizes={args.sizes}, tws={args.tws or 'all'}, "
-          f"variants={args.variants}, mode={mode})\n")
+    print(
+        f"Total jobs: {len(jobs)} (sizes={args.sizes}, tws={args.tws or 'all'}, "
+        f"variants={args.variants}, mode={mode})\n"
+    )
 
     queued = None
     if not args.fresh:
         queued = queued_job_names()
         if queued is None:
-            print("WARNING: squeue not available -- cannot detect jobs that are "
-                  "already queued/running; they would be submitted again!\n")
+            print(
+                "WARNING: squeue not available -- cannot detect jobs that are "
+                "already queued/running; they would be submitted again!\n"
+            )
 
     for ds_key, variant in jobs:
         tag = job_tag(ds_key, variant)
@@ -273,13 +400,19 @@ if __name__ == "__main__":
                 print(f"[{mode}] {tag}: no checkpoint found -- submitting fresh")
             else:
                 if is_complete(ds_key, variant, info):
-                    print(f"[{mode}] SKIP {tag}: already complete (epoch {info['epoch']})")
+                    print(
+                        f"[{mode}] SKIP {tag}: already complete (epoch {info['epoch']})"
+                    )
                     continue
                 if variant.endswith("pipd") and info["pip_ckpt"] is None:
-                    print(f"[{mode}] SKIP {tag}: epoch-{info['epoch']}.pt found but no "
-                          f"fsb_accuracy_bsf.pt in {info['run_dir']} -- resume manually")
+                    print(
+                        f"[{mode}] SKIP {tag}: epoch-{info['epoch']}.pt found but no "
+                        f"fsb_accuracy_bsf.pt in {info['run_dir']} -- resume manually"
+                    )
                     continue
-                print(f"[{mode}] {tag}: resume from epoch {info['epoch']} "
-                      f"({info['run_dir']})")
+                print(
+                    f"[{mode}] {tag}: resume from epoch {info['epoch']} "
+                    f"({info['run_dir']})"
+                )
                 extra_params += resume_params(variant, info)
         submit_experiment(ds_key, variant, args.seed, args.dry_run, extra_params)

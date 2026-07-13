@@ -225,6 +225,12 @@ def run(opts):
                                            "train_accuracy_bsf": "accuracy_bsf.pt"}
 
                         checkpoint_fullname = os.path.join(opts.save_dir, pip_checkpoint[opts.load_which_pip])
+                        if not os.path.exists(checkpoint_fullname) and opts.pip_checkpoint:
+                            # Resumed runs write to a fresh save_dir: until the PIP decoder saves
+                            # a new best there, the best-so-far checkpoint is still the one in the
+                            # previous run's directory (the one loaded at startup).
+                            checkpoint_fullname = os.path.join(
+                                os.path.dirname(opts.pip_checkpoint), pip_checkpoint[opts.load_which_pip])
                         pip_model_param = torch_load_cpu(checkpoint_fullname)
                         pip_model.load_state_dict(pip_model_param['model_state_dict'], strict=True)
 
