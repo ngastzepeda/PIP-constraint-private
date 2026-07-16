@@ -4,7 +4,7 @@ from tensorboard_logger import Logger as TbLogger
 from utils import *
 from models.SINGLEModel import SINGLEModel
 from sklearn.utils.class_weight import compute_class_weight
-import os, re, wandb
+import os, re, json, wandb
 from sklearn.metrics import confusion_matrix
 
 class Trainer:
@@ -21,6 +21,10 @@ class Trainer:
         self.device = args.device
         self.log_path = args.log_path
         self.result_log = {"val_score": [], "val_gap": [], "val_infsb_rate": []}
+        # val-best tracker; survives resumes (restored below from val_best_meta.json /
+        # checkpoint keys / result_log) so a resume can never overwrite
+        # trained_model_val_best.pt with a worse model
+        self.best_val_feas, self.best_val_score = None, float("inf")
         # validation data / opt-sol files, each read once per run and served from memory
         # afterwards, so validation does not depend on the files staying available on disk
         self._val_data_cache = {}
@@ -107,6 +111,31 @@ class Trainer:
 
             self.start_epoch = 1 + checkpoint['epoch']
             self.scheduler.last_epoch = checkpoint['epoch'] - 1
+            # Carry the validation history and the val-best tracker across the resume.
+            # Preferred source is val_best_meta.json (written whenever the val-best model
+            # is saved): the epoch checkpoint is saved BEFORE that epoch's validation, so
+            # its stored tracker can lag one validation behind.
+            self.result_log = checkpoint.get('result_log', self.result_log)
+            meta_path = os.path.join(os.path.dirname(checkpoint_fullname), "val_best_meta.json")
+            if os.path.isfile(meta_path):
+                with open(meta_path) as fh:
+                    meta = json.load(fh)
+                self.best_val_feas, self.best_val_score = meta["feas"], meta["score"]
+            elif checkpoint.get('best_val_feas') is not None:
+                self.best_val_feas = checkpoint['best_val_feas']
+                self.best_val_score = checkpoint.get('best_val_score', float('inf'))
+            else:
+                # pre-fix checkpoint without tracker: rebuild it from the stored val
+                # history (covers this attempt only, see gather_checkpoints.py)
+                for score, rate in zip(self.result_log.get("val_score", []),
+                                       self.result_log.get("val_infsb_rate", [])):
+                    feas = 100. - rate[1] if isinstance(rate, (list, tuple)) else None
+                    score_cmp = score if score == score else float('inf')
+                    if self._val_is_better(feas, score_cmp):
+                        self.best_val_feas, self.best_val_score = feas, score_cmp
+            if self.best_val_feas is not None:
+                print(">> Val-best tracker restored (feasible rate: {}%, score: {})".format(
+                    self.best_val_feas, self.best_val_score))
             if self.trainer_params["load_optimizer"]:
                 self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
                 print(">> Optimizer (Epoch: {}) Loaded (lr = {})!".format(checkpoint['epoch'], self.optimizer.param_groups[0]['lr']))
@@ -115,6 +144,15 @@ class Trainer:
 
         # utility
         self.time_estimator = TimeEstimator()
+
+    def _val_is_better(self, ins_feas, score_cmp):
+        """Model-selection comparison (AMAI/LMask convention): instance-level
+        feasibility rate first, feasible cost tie-break; the first validation
+        always wins."""
+        if ins_feas is None:
+            return score_cmp < self.best_val_score
+        return (self.best_val_feas is None or ins_feas > self.best_val_feas
+                or (ins_feas == self.best_val_feas and score_cmp < self.best_val_score))
 
     def run(self):
         self.time_estimator.reset(self.start_epoch)
@@ -224,6 +262,9 @@ class Trainer:
                     'optimizer_state_dict': self.optimizer.state_dict(),
                     'scheduler_state_dict': self.scheduler.state_dict(),
                     'result_log': self.result_log,
+                    # val-best tracker (also mirrored in val_best_meta.json on each improvement)
+                    'best_val_feas': self.best_val_feas,
+                    'best_val_score': self.best_val_score,
                 }
                 torch.save(checkpoint_dict, '{}/epoch-{}.pt'.format(self.log_path, epoch))
                 if not self.trainer_params.get("keep_all_checkpoints", False):
@@ -279,19 +320,16 @@ class Trainer:
                             pass
 
                     # Model selection consistent with the AMAI/LMask convention: monitor the
-                    # instance-level feasibility rate first, tie-break by feasible cost.
+                    # instance-level feasibility rate first, tie-break by feasible cost. The
+                    # tracker survives resumes (restored in __init__), so a resumed run can
+                    # never overwrite the file with a worse model.
                     ins_feas = 100. - infsb_rate[1] if isinstance(infsb_rate, (list, tuple)) else None
                     score_cmp = score if score == score else float('inf')  # NaN (no feasible solution) -> inf
-                    try:
-                        if ins_feas is not None:
-                            is_better = (ins_feas > best_val_feas) or (ins_feas == best_val_feas and score_cmp < best_val_score)
-                        else:
-                            is_better = score_cmp < best_val_score
-                    except NameError:
-                        is_better = True
-                    if is_better:
-                        best_val_feas, best_val_score = ins_feas, score_cmp
+                    if self._val_is_better(ins_feas, score_cmp):
+                        self.best_val_feas, self.best_val_score = ins_feas, score_cmp
                         torch.save(self.model.state_dict(), os.path.join(self.log_path, "trained_model_val_best.pt"))
+                        with open(os.path.join(self.log_path, "val_best_meta.json"), "w") as fh:
+                            json.dump({"epoch": epoch, "feas": ins_feas, "score": score_cmp}, fh)
                         print(">> Best model on validation dataset saved! (feasible rate: {}%, score: {})".format(ins_feas, score_cmp))
 
     def _next_train_batch(self, batch_size):

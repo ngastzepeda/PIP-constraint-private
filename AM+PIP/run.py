@@ -184,6 +184,20 @@ def run(opts):
 
     if opts.resume:
         epoch_resume = int(os.path.splitext(os.path.split(opts.resume)[-1])[0].split("-")[1])
+        # Restore the val-best tracker so the resumed run cannot write a worse
+        # val_best.pt. Preferred source is the val_best_meta.json next to the resumed
+        # checkpoint: the epoch checkpoint is saved BEFORE that epoch's validation, so
+        # its stored tracker can lag one validation behind.
+        meta_path = os.path.join(os.path.dirname(opts.resume), 'val_best_meta.json')
+        if os.path.isfile(meta_path):
+            with open(meta_path) as fh:
+                meta = json.load(fh)
+            opts.best_val_feas, opts.best_val_cost = meta['feas'], meta['cost']
+        elif load_data.get('best_val_feas') is not None:
+            opts.best_val_feas, opts.best_val_cost = load_data['best_val_feas'], load_data['best_val_cost']
+        if getattr(opts, 'best_val_feas', None) is not None:
+            print("Val-best tracker restored (feasible rate: {:.2f}%, cost: {:.4f})".format(
+                opts.best_val_feas, opts.best_val_cost))
         torch.set_rng_state(load_data['rng_state'])
         if opts.use_cuda:
             torch.cuda.set_rng_state_all(load_data['cuda_rng_state'])

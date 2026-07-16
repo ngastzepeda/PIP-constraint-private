@@ -1,4 +1,5 @@
 import os
+import json
 import time
 from tqdm import tqdm
 import torch
@@ -204,7 +205,12 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
                 'optimizer': optimizer.state_dict(),
                 'rng_state': torch.get_rng_state(),
                 'cuda_rng_state': torch.cuda.get_rng_state_all(),
-                'baseline': baseline.state_dict()
+                'baseline': baseline.state_dict(),
+                # val-best tracker (also mirrored in val_best_meta.json on each
+                # improvement); restored on --resume so a resumed run cannot
+                # regress the model selection
+                'best_val_feas': getattr(opts, 'best_val_feas', None),
+                'best_val_cost': getattr(opts, 'best_val_cost', None)
             },
             os.path.join(opts.save_dir, 'epoch-{}.pt'.format(epoch))
         )
@@ -287,6 +293,8 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
             opts.best_val_feas, opts.best_val_cost = val_feas, val_cost
             base_model = model[0] if isinstance(model, list) else model
             torch.save(get_inner_model(base_model).state_dict(), os.path.join(opts.save_dir, 'val_best.pt'))
+            with open(os.path.join(opts.save_dir, 'val_best_meta.json'), 'w') as fh:
+                json.dump({'epoch': epoch, 'feas': val_feas, 'cost': val_cost}, fh)
             print(">> Best model on validation dataset saved! (feasible rate: {:.2f}%, cost: {:.4f})".format(val_feas, val_cost))
 
     if not opts.no_tensorboard:
