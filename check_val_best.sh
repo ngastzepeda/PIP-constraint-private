@@ -18,6 +18,12 @@ else
     exit 1
 fi
 
-# -u: unbuffered output, so progress lines appear immediately even when
-# piped (e.g. ... | tee check.log) or over a laggy ssh connection
-python -u "check_val_best.py" "$@"
+# Everything is also logged to a timestamped file, so a dropped ssh
+# connection loses nothing. -u: unbuffered output, so progress lines appear
+# immediately (both on the terminal and in the log) despite the tee pipe.
+mkdir -p out/check_val_best
+log_file="out/check_val_best/$(date +%Y%m%d_%H%M%S).log"
+echo "Logging to $log_file"
+python -u "check_val_best.py" "$@" 2>&1 | tee "$log_file"
+# exit with the checker's status (1 = something AT RISK/UNKNOWN), not tee's
+exit "${PIPESTATUS[0]}"
