@@ -80,6 +80,16 @@ exceptions marked *(default changed)*.
   (`trained_model_val_best.pt` / `val_best.pt`, weights only) is chosen by
   **instance-level feasibility rate first, feasible cost as tie-break** — matching
   LMask's `monitor: val/ins_feas_rate`. Upstream POMO used feasible cost only.
+* **Val-best tracker survives resumes** *(fix)*: each val-best save also writes a
+  `val_best_meta.json` (epoch, feas, score/cost) next to the file, the tracker
+  values go into the epoch checkpoints, and resuming restores them (meta file
+  preferred — the epoch checkpoint is written *before* that epoch's validation, so
+  its tracker can lag one validation behind; pre-fix POMO checkpoints fall back to
+  the `result_log` history). Without this, the in-memory best-so-far reset on every
+  resume, so a resumed run could overwrite (POMO, single in-place file) or shadow
+  (AM, one `val_best.pt` per attempt dir) a better pre-resume model. Runs resumed
+  before the fix keep that caveat; `gather_checkpoints.py` flags them and resolves
+  AM lineages via the wandb validation history.
 * Robustness fixes: CPU fallback when CUDA is unavailable; graceful stop when
   val/test files are smaller than the requested episode count; optimality-gap
   computation only runs when a solution file actually exists.
@@ -232,6 +242,25 @@ script from inside its implementation directory).
 * Checkpoints to evaluate: `trained_model_val_best.pt` (POMO) / `val_best.pt` (AM),
   selected by validation feasibility rate; the latest `epoch-N.pt` is the "last"
   model.
+* `bash gather_checkpoints.sh [--git-add]` (cluster, repo root) collects each run's
+  checkpoints into flat `checkpoints/<tag>_{best,last,pip}.pt` files plus a
+  `manifest.csv` (source path, epoch, score) — `pip` is the PIP-D auxiliary decoder
+  (`fsb_accuracy_bsf.pt`, needed at test time). Lineage handling: POMO resumes reuse
+  their run dir (stale fresh-restart dirs are ignored); AM resumes open a new dir
+  with the same wandb id. The `best` fields (epoch/feas/score) come from
+  `val_best_meta.json` where available (runs trained after the tracker fix); for
+  pre-fix AM lineages with several `val_best.pt` candidates the true best is
+  resolved from the run's wandb validation history, and for pre-fix POMO runs a
+  pre-resume best that was never beaten again is overwritten in place and
+  unrecoverable (the manifest notes this).
+* `bash check_val_best.sh` (cluster login node, repo root) audits exactly that
+  caveat run by run: it pulls each run's full validation history from wandb and
+  reports OK (the global best under the feasibility-first rule is held by an
+  existing val-best file — for POMO because it falls after the last resume, whose
+  start is read from the newest `wandb/run-<ts>-<id>` attach dir) or AT RISK (POMO
+  only: the global best predates the last resume and its weights were overwritten —
+  decide between reporting the post-resume best and re-running). Unfinished runs
+  are marked PROVISIONAL; re-check after completion.
 
 ## 7. Open items
 
