@@ -176,33 +176,43 @@ def main():
                     choices=list(VARIANTS))
     args = ap.parse_args()
 
-    counts = {"OK": 0, "AT RISK": 0, "UNKNOWN": 0}
-    for ds_key, ds in DATASETS.items():
-        if ds["size"] not in args.sizes:
-            continue
-        if ds["tws"] is not None and args.tws is not None and ds["tws"] not in args.tws:
-            continue
-        for variant in args.variants:
-            tag = job_tag(ds_key, variant)
-            family = VARIANTS[variant]["family"]
-            base = POMO_DIR if family == "pomo" else AM_DIR
-            run_root = base / ("results" if family == "pomo" else "outputs") / tag
-            if not run_root.is_dir():
-                print(f"{tag:18} -       : no run dir -> skip")
-                continue
-            lineage = pomo_lineage(run_root) if family == "pomo" else am_lineage(run_root)
-            if not lineage:
-                print(f"{tag:18} -       : no checkpoints -> skip")
-                continue
+    jobs = [
+        (ds_key, variant)
+        for ds_key, ds in DATASETS.items()
+        if ds["size"] in args.sizes
+        and (ds["tws"] is None or args.tws is None or ds["tws"] in args.tws)
+        for variant in args.variants
+    ]
+    print(f"Checking {len(jobs)} runs (1-2 wandb history downloads each, "
+          "typically a few seconds per run)...", flush=True)
 
-            # POMO epochs are 1-based (last ckpt: epoch-<target>), AM 0-based
-            target = ds["epochs"] if family == "pomo" else ds["epochs"] - 1
-            last, complete = progress(lineage, target)
-            check = check_pomo if family == "pomo" else check_am
-            verdict, detail = check(tag, lineage, target)
-            counts[verdict] += 1
-            prov = "" if complete else f" [PROVISIONAL - at epoch {last}/{target}]"
-            print(f"{tag:18} {verdict:7}: {detail}{prov}")
+    counts = {"OK": 0, "AT RISK": 0, "UNKNOWN": 0}
+    for i, (ds_key, variant) in enumerate(jobs, 1):
+        ds = DATASETS[ds_key]
+        tag = job_tag(ds_key, variant)
+        prefix = f"[{i:2}/{len(jobs)}]"
+        family = VARIANTS[variant]["family"]
+        base = POMO_DIR if family == "pomo" else AM_DIR
+        run_root = base / ("results" if family == "pomo" else "outputs") / tag
+        if not run_root.is_dir():
+            print(f"{prefix} {tag:18} -       : no run dir -> skip", flush=True)
+            continue
+        lineage = pomo_lineage(run_root) if family == "pomo" else am_lineage(run_root)
+        if not lineage:
+            print(f"{prefix} {tag:18} -       : no checkpoints -> skip", flush=True)
+            continue
+
+        print(f"{prefix} {tag:18} fetching wandb history...", flush=True)
+        started = time.monotonic()
+        # POMO epochs are 1-based (last ckpt: epoch-<target>), AM 0-based
+        target = ds["epochs"] if family == "pomo" else ds["epochs"] - 1
+        last, complete = progress(lineage, target)
+        check = check_pomo if family == "pomo" else check_am
+        verdict, detail = check(tag, lineage, target)
+        counts[verdict] += 1
+        prov = "" if complete else f" [PROVISIONAL - at epoch {last}/{target}]"
+        print(f"{prefix} {tag:18} {verdict:7} ({time.monotonic() - started:.1f}s): "
+              f"{detail}{prov}", flush=True)
 
     print(f"\nSummary: {counts['OK']} OK, {counts['AT RISK']} AT RISK, "
           f"{counts['UNKNOWN']} UNKNOWN")

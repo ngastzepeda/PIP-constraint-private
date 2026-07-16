@@ -18,4 +18,6 @@ else
     exit 1
 fi
 
-python "check_val_best.py" "$@"
+# -u: unbuffered output, so progress lines appear immediately even when
+# piped (e.g. ... | tee check.log) or over a laggy ssh connection
+python -u "check_val_best.py" "$@"
