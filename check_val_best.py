@@ -35,6 +35,10 @@ import argparse
 import sys
 import time
 
+# progress marker before the heavy imports: gather_checkpoints pulls in torch,
+# which can take minutes from .venv when the parallel filesystem is slow
+print("loading libraries (torch import - can take a while on the cluster "
+      "filesystem)...", flush=True)
 from submit_jobs import AM_DIR, DATASETS, POMO_DIR, VARIANTS, job_tag
 from gather_checkpoints import (am_lineage, epoch_ckpts, pomo_lineage,
                                 read_meta, wandb_run_id)
@@ -48,8 +52,11 @@ _api = None
 def api():
     global _api
     if _api is None:
+        print("connecting to the wandb API...", flush=True)
         import wandb
-        _api = wandb.Api()
+        # timeout so a blocked/throttled connection errors out (-> UNKNOWN
+        # verdicts) instead of hanging forever
+        _api = wandb.Api(timeout=60)
     return _api
 
 

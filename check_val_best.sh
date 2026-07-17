@@ -2,10 +2,31 @@
 
 # Wrapper for check_val_best.py (same convention as submit_jobs.sh):
 # load the Python module, source the venv, then run the checker.
-# Needs network access to wandb -> run on the login node, not in a job.
+# Needs network access to wandb. Either run it on the login node:
 #
 #   bash check_val_best.sh                              # full grid
 #   bash check_val_best.sh --sizes 100 --variants pomo pip pipd
+#
+# or, if the login node is too slow (struggling PFS / throttled network),
+# submit it as a short CPU job (compute nodes reach wandb too - that is where
+# the training logging runs). The #SBATCH defaults below apply then:
+#
+#   sbatch check_val_best.sh [same args]
+#
+# NOTE for sbatch: slurm does not create the log dir, so out/check_val_best/
+# must exist at submission (it does after any previous bash run; the mkdir
+# below creates it for the future).
+#
+#SBATCH -J check_val_best
+#SBATCH -p normal
+#SBATCH -t 1:00:00
+#SBATCH -N 1
+#SBATCH -n 1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem-per-cpu=4GB
+#SBATCH -A hpc-prf-tqff
+#SBATCH --output=out/check_val_best/%j.out
+#SBATCH --error=out/check_val_best/%j.err
 
 module load lang/Python/3.12.3-GCCcore-13.2.0
 
