@@ -19,7 +19,7 @@
 #
 #SBATCH -J check_val_best
 #SBATCH -p normal
-#SBATCH -t 1:00:00
+#SBATCH -t 02:00:00
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH --cpus-per-task=2
