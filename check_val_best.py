@@ -111,20 +111,26 @@ def check_pomo(tag, lineage, target):
         return "UNKNOWN", "no wandb run id in run dir"
 
     feas_key, score_key = (f"val_ins_infsb_rate/{VAL_NAME}", f"val_score/{VAL_NAME}")
+    # fetch both metrics in one pass so feas and score come from the same row
+    # (a per-key positional pairing would misalign if wandb returned the two
+    # series at different steps or lengths)
     try:
-        feas_rows = wandb_history(run_id, [feas_key])
-        score_rows = wandb_history(run_id, [score_key])
+        rows = wandb_history(run_id, [feas_key, score_key])
     except Exception as exc:
         return "UNKNOWN", f"wandb lookup failed: {exc}"
-    if not feas_rows:
+    if not rows:
         return "UNKNOWN", "no validation rows in wandb"
 
     points = []  # (feas, score, timestamp-or-None, index)
-    for i, row in enumerate(feas_rows):
-        score = (
-            as_score(score_rows[i][score_key]) if i < len(score_rows) else float("inf")
+    for i, row in enumerate(rows):
+        feas = row.get(feas_key)
+        if feas is None:  # step without a logged feasibility rate -> not a val point
+            continue
+        points.append(
+            (100.0 - float(feas), as_score(row.get(score_key)), row.get("_timestamp"), i)
         )
-        points.append((100.0 - float(row[feas_key]), score, row.get("_timestamp"), i))
+    if not points:
+        return "UNKNOWN", "no validation rows with a feasibility rate in wandb"
     gbest = None
     for p in points:
         if better(p[:2], gbest and gbest[:2]):
