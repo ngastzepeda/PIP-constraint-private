@@ -5,6 +5,9 @@
 #
 #   bash gather_checkpoints.sh                # copy into checkpoints/ (no git)
 #   bash gather_checkpoints.sh --git-add      # ...and git add the folder
+#   bash gather_checkpoints.sh --include_all  # also gather unfinished runs
+#
+# By default only runs that reached their target epoch are gathered.
 
 module load lang/Python/3.12.3-GCCcore-13.2.0
 

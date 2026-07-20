@@ -245,7 +245,10 @@ script from inside its implementation directory).
 * `bash gather_checkpoints.sh [--git-add]` (cluster, repo root) collects each run's
   checkpoints into flat `checkpoints/<tag>_{best,last,pip}.pt` files plus a
   `manifest.csv` (source path, epoch, score) — `pip` is the PIP-D auxiliary decoder
-  (`fsb_accuracy_bsf.pt`, needed at test time). Lineage handling: POMO resumes reuse
+  (`fsb_accuracy_bsf.pt`, needed at test time). By default only **finished** runs
+  are gathered (last `epoch-N.pt` ≥ `submit_jobs.target_epochs`; POMO's last ckpt is
+  `epoch-<target>`, AM's `epoch-<target-1>`); unfinished runs are skipped with a note.
+  Pass `--include_all` to gather still-training runs too. Lineage handling: POMO resumes reuse
   their run dir (stale fresh-restart dirs are ignored); AM resumes open a new dir
   with the same wandb id. The `best` fields (epoch/feas/score) come from
   `val_best_meta.json` where available (runs trained after the tracker fix); for

@@ -8,6 +8,11 @@ loads the Python module and sources the venv):
     bash gather_checkpoints.sh --git-add      # ...and git add the folder
     bash gather_checkpoints.sh --dest somedir # different destination folder
     bash gather_checkpoints.sh --sizes 100 --tws mw --variants pipd  # subset
+    bash gather_checkpoints.sh --include_all  # also gather unfinished runs
+
+By default only runs that reached their target epoch (submit_jobs.target_epochs;
+POMO's last ckpt is epoch-<target>, AM's epoch-<target-1>) are gathered; pass
+--include_all to also gather runs that are still training.
 
 Run-dir layouts (see submit_jobs.py):
 
@@ -65,7 +70,7 @@ from pathlib import Path
 
 import torch
 
-from submit_jobs import AM_DIR, DATASETS, POMO_DIR, VARIANTS, job_tag
+from submit_jobs import AM_DIR, DATASETS, POMO_DIR, VARIANTS, job_tag, target_epochs
 
 
 def epoch_ckpts(run_dir):
@@ -289,6 +294,12 @@ def main():
     )
     ap.add_argument("--dest", default="checkpoints", help="destination folder")
     ap.add_argument(
+        "--include_all",
+        action="store_true",
+        help="also gather runs that have not reached their target epoch "
+        "(default: only finished runs are gathered)",
+    )
+    ap.add_argument(
         "--git-add",
         action="store_true",
         help="git add the destination folder after copying",
@@ -326,6 +337,22 @@ def main():
             if eps:
                 epoch, path = max(eps)
                 last = dict(path=path, epoch=epoch, feas=None, score=None, note="")
+
+            # skip runs that have not finished training unless --include_all.
+            # POMO epochs are 1-based (last ckpt: epoch-<target>), AM 0-based
+            # (last ckpt: epoch-<target-1>), same convention as check_val_best.
+            target = target_epochs(ds_key, variant)
+            target_last = target if family == "pomo" else target - 1
+            last_epoch = epoch if eps else None
+            if not args.include_all and (
+                last_epoch is None or last_epoch < target_last
+            ):
+                print(
+                    f"- {tag}: unfinished (at epoch {last_epoch}/{target_last}) "
+                    "-> skip (use --include_all to gather anyway)",
+                    file=sys.stderr,
+                )
+                continue
 
             # best: val-best state_dict (see docstring for the resume caveat)
             if family == "pomo":
