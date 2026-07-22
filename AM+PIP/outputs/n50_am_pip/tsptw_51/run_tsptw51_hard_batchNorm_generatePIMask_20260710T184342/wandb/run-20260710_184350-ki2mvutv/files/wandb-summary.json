@@ -1,0 +1,1 @@
+{"epoch":499,"_timestamp":1.7837307573752599e+09,"val/feasible_cost":8.319228172302246,"val/infsb_rate":36.7000013589859,"val/avg_timeout_nodes":0.7700000405311584,"val/avg_timeout":0.1742188185453415,"_wandb":{"runtime":28925},"_step":499,"_runtime":28925.260106365}

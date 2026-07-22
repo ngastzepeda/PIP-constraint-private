@@ -1,0 +1,468 @@
+_wandb:
+    value:
+        cli_version: 0.28.0
+        e:
+            35dwmqho62kk7d5kn51hek7npx2c3io6:
+                args:
+                    - --problem
+                    - tsptw
+                    - --graph_size
+                    - "51"
+                    - --train_set_path
+                    - ../data/feas_tsptw/n50_amai/train_100k.npz
+                    - --val_dataset
+                    - ../data/feas_tsptw/n50_amai/val_1k.npz
+                    - --val_size
+                    - "1000"
+                    - --include_service_time
+                    - --n_epochs
+                    - "500"
+                    - --seed
+                    - "2023"
+                    - --output_dir
+                    - outputs/n50_am_pipd
+                    - --log_dir
+                    - logs/n50_am_pipd
+                    - --no_progress_bar
+                    - --wandb_logger
+                    - --wandb_project
+                    - pip_feasible
+                    - --wandb_name
+                    - am_pipd_tsptw_n50
+                    - --generate_PI_mask
+                    - --pip_decoder
+                    - --simulation_stop_epoch
+                    - "50"
+                    - --pip_update_interval
+                    - "50"
+                    - --pip_update_epoch
+                    - "10"
+                    - --pip_last_growup
+                    - "25"
+                codePath: AM+PIP/run.py
+                codePathLocal: run.py
+                cpu_count: 128
+                cpu_count_logical: 128
+                cudaVersion: "13.0"
+                disk:
+                    /:
+                        total: "12874416128"
+                        used: "8740315136"
+                email: nayeli.gast.zepeda@univie.ac.at
+                executable: /scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private/.venv/bin/python
+                git:
+                    commit: d35ecf4ae4a49cd4daef5982622a1e83f92a05b5
+                    remote: git@github.com:ngastzepeda/PIP-constraint-private.git
+                gpu: NVIDIA A100-SXM4-40GB
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "42949672960"
+                      name: NVIDIA A100-SXM4-40GB
+                      uuid: GPU-fb3a55a7-c44d-bca2-867c-0dd79fa0954b
+                host: n2gpu1228
+                memory:
+                    total: "540810129408"
+                os: Linux-4.18.0-553.139.1.el8_10.x86_64-x86_64-with-glibc2.28
+                program: /scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private/AM+PIP/run.py
+                python: CPython 3.12.3
+                root: outputs/n50_am_pipd/tsptw_51/run_tsptw51_hard_batchNorm_generatePIMask_PIPDecoder_labelBalance_20260710T184341
+                slurm:
+                    cluster_name: noctua2
+                    conf: /opt/software/slurm/25.11.2-1/etc/slurm.conf
+                    cpus_on_node: "2"
+                    cpus_per_task: "2"
+                    eclibr: "0"
+                    ecplug: "1"
+                    erlast: sbatch
+                    ersbac: "1"
+                    gpus_on_node: "1"
+                    gtids: "0"
+                    job_account: hpc-prf-tqff
+                    job_cpus_per_node: "2"
+                    job_end_time: "1784306520"
+                    job_gid: "10000"
+                    job_gpus: "3"
+                    job_id: "33601099"
+                    job_name: pip_n50_am_pipd
+                    job_nodelist: n2gpu1228
+                    job_num_nodes: "1"
+                    job_partition: gpu
+                    job_qos: nocont
+                    job_start_time: "1783701719"
+                    job_uid: "97274"
+                    job_user: winf409
+                    jobid: "33601099"
+                    localid: "0"
+                    mem_per_cpu: "8192"
+                    nnodes: "1"
+                    nodeid: "0"
+                    nodelist: n2gpu1228
+                    nprocs: "1"
+                    ntasks: "1"
+                    ntasks_per_node: "1"
+                    oom_kill_step: "0"
+                    pmix_tmpdir: /dev/shm
+                    prio_process: "0"
+                    procid: "0"
+                    script_context: prolog_task
+                    spank_spank_clustercockpit: normal
+                    spank_spank_collectors: normal
+                    spank_spank_fpgalinkenabled: "NO"
+                    spank_spank_hugememssd: "off"
+                    submit_dir: /scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private
+                    submit_host: n2login1
+                    task_pid: "195688"
+                    tasks_per_node: "1"
+                    topology_addr: TOP.n2-12-L1-01.n2gpu1228
+                    topology_addr_pattern: switch.switch.node
+                    tres_per_task: cpu=2
+                startedAt: "2026-07-10T16:43:50.591336Z"
+                writerId: 35dwmqho62kk7d5kn51hek7npx2c3io6
+        m: []
+        python_version: 3.12.3
+        t:
+            "1":
+                - 1
+                - 5
+                - 53
+            "2":
+                - 1
+                - 5
+                - 53
+            "3":
+                - 13
+                - 16
+                - 61
+            "4": 3.12.3
+            "5": 0.28.0
+            "12": 0.28.0
+            "13": linux-x86_64
+CUDA_VISIBLE_ID:
+    value: "0"
+accuracy_bsf:
+    value: 0
+all_cuda_visible:
+    value: false
+baseline:
+    value: rollout
+batch_size:
+    value: 512
+bl_alpha:
+    value: 0.05
+bl_warmup_epochs:
+    value: 1
+checkpoint_encoder:
+    value: false
+checkpoint_epochs:
+    value: 1
+decision_boundary:
+    value: 0.5
+dislocation_start:
+    value: -1
+embedding_dim:
+    value: 128
+epoch_size:
+    value: 1280000
+epoch_start:
+    value: 0
+eval_batch_size:
+    value: 10000
+eval_only:
+    value: false
+exp_beta:
+    value: 0.8
+fast_label_balance:
+    value: true
+fast_weight:
+    value: true
+fsb_accuracy_bsf:
+    value: 0
+generate_PI_mask:
+    value: true
+graph_size:
+    value: 51
+hardness:
+    value: hard
+hidden_dim:
+    value: 128
+include_service_time:
+    value: true
+infsb_accuracy_bsf:
+    value: 0
+is_train_pip_decoder:
+    value: true
+keep_all_checkpoints:
+    value: false
+label_balance_sampling:
+    value: true
+load_path:
+    value: null
+load_sl_epoch_list:
+    value:
+        - 50
+        - 50
+        - 100
+        - 150
+        - 200
+        - 250
+        - 300
+        - 350
+        - 400
+        - 450
+load_which_pip:
+    value: train_fsb_bsf
+log_dir:
+    value: logs/n50_am_pipd
+log_step:
+    value: 50
+lr_critic:
+    value: 0.0001
+lr_decay:
+    value: 1
+lr_model:
+    value: 0.0001
+max_grad_norm:
+    value: 1
+model:
+    value: attention
+n_encode_layers:
+    value: 3
+n_epochs:
+    value: 500
+no_cuda:
+    value: false
+no_progress_bar:
+    value: true
+no_tensorboard:
+    value: false
+normalization:
+    value: batch
+output_dir:
+    value: outputs/n50_am_pipd
+pip_checkpoint:
+    value: null
+pip_decoder:
+    value: true
+pip_last_growup:
+    value: 25
+pip_save:
+    value: epoch
+pip_update_epoch:
+    value: 10
+pip_update_interval:
+    value: 50
+problem:
+    value: tsptw
+resume:
+    value: null
+run_name:
+    value: run_tsptw51_hard_batchNorm_generatePIMask_PIPDecoder_labelBalance_20260710T184341
+save_dir:
+    value: outputs/n50_am_pipd/tsptw_51/run_tsptw51_hard_batchNorm_generatePIMask_PIPDecoder_labelBalance_20260710T184341
+seed:
+    value: 2023
+shrink_size:
+    value: null
+simulation_stop_epoch:
+    value: 50
+sl_loss:
+    value: BCEWithLogitsLoss
+tanh_clipping:
+    value: 10
+train_set_path:
+    value: ../data/feas_tsptw/n50_amai/train_100k.npz
+train_sl_epoch_list:
+    value:
+        - 0
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        - 8
+        - 9
+        - 10
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+        - 16
+        - 17
+        - 18
+        - 19
+        - 20
+        - 21
+        - 22
+        - 23
+        - 24
+        - 25
+        - 26
+        - 27
+        - 28
+        - 29
+        - 30
+        - 31
+        - 32
+        - 33
+        - 34
+        - 35
+        - 36
+        - 37
+        - 38
+        - 39
+        - 40
+        - 41
+        - 42
+        - 43
+        - 44
+        - 45
+        - 46
+        - 47
+        - 48
+        - 49
+        - 40
+        - 41
+        - 42
+        - 43
+        - 44
+        - 45
+        - 46
+        - 47
+        - 48
+        - 49
+        - 90
+        - 91
+        - 92
+        - 93
+        - 94
+        - 95
+        - 96
+        - 97
+        - 98
+        - 99
+        - 140
+        - 141
+        - 142
+        - 143
+        - 144
+        - 145
+        - 146
+        - 147
+        - 148
+        - 149
+        - 190
+        - 191
+        - 192
+        - 193
+        - 194
+        - 195
+        - 196
+        - 197
+        - 198
+        - 199
+        - 240
+        - 241
+        - 242
+        - 243
+        - 244
+        - 245
+        - 246
+        - 247
+        - 248
+        - 249
+        - 290
+        - 291
+        - 292
+        - 293
+        - 294
+        - 295
+        - 296
+        - 297
+        - 298
+        - 299
+        - 340
+        - 341
+        - 342
+        - 343
+        - 344
+        - 345
+        - 346
+        - 347
+        - 348
+        - 349
+        - 390
+        - 391
+        - 392
+        - 393
+        - 394
+        - 395
+        - 396
+        - 397
+        - 398
+        - 399
+        - 440
+        - 441
+        - 442
+        - 443
+        - 444
+        - 445
+        - 446
+        - 447
+        - 448
+        - 449
+        - 490
+        - 491
+        - 492
+        - 493
+        - 494
+        - 495
+        - 496
+        - 497
+        - 498
+        - 499
+        - 475
+        - 476
+        - 477
+        - 478
+        - 479
+        - 480
+        - 481
+        - 482
+        - 483
+        - 484
+        - 485
+        - 486
+        - 487
+        - 488
+        - 489
+        - 490
+        - 491
+        - 492
+        - 493
+        - 494
+        - 495
+        - 496
+        - 497
+        - 498
+        - 499
+use_cuda:
+    value: true
+val_dataset:
+    value: ../data/feas_tsptw/n50_amai/val_1k.npz
+val_size:
+    value: 1000
+val_solution_path:
+    value: null
+wandb_id:
+    value: null
+wandb_logger:
+    value: true
+wandb_name:
+    value: am_pipd_tsptw_n50
+wandb_project:
+    value: pip_feasible
