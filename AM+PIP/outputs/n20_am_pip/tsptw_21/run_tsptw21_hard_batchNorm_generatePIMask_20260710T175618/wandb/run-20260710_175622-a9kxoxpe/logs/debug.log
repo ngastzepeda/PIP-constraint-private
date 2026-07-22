@@ -1,0 +1,44 @@
+2026-07-10 17:56:22,955 INFO    MainThread:231013 [wandb_setup.py:_flush():81] Current SDK version is 0.28.0
+2026-07-10 17:56:22,955 INFO    MainThread:231013 [wandb_setup.py:_flush():81] Configure stats pid to 231013
+2026-07-10 17:56:22,955 INFO    MainThread:231013 [wandb_setup.py:_flush():81] Loading settings from environment variables
+2026-07-10 17:56:22,956 INFO    MainThread:231013 [wandb_init.py:setup_run_log_directory():725] Logging user logs to outputs/n20_am_pip/tsptw_21/run_tsptw21_hard_batchNorm_generatePIMask_20260710T175618/wandb/run-20260710_175622-a9kxoxpe/logs/debug.log
+2026-07-10 17:56:22,956 INFO    MainThread:231013 [wandb_init.py:setup_run_log_directory():726] Logging internal logs to outputs/n20_am_pip/tsptw_21/run_tsptw21_hard_batchNorm_generatePIMask_20260710T175618/wandb/run-20260710_175622-a9kxoxpe/logs/debug-internal.log
+2026-07-10 17:56:22,956 INFO    MainThread:231013 [wandb_init.py:init():768] calling init triggers
+2026-07-10 17:56:22,956 INFO    MainThread:231013 [wandb_init.py:init():773] wandb.init called with sweep_config: {}
+config: {'problem': 'tsptw', 'graph_size': 21, 'batch_size': 512, 'epoch_size': 1280000, 'val_size': 1000, 'generate_PI_mask': True, 'hardness': 'hard', 'val_dataset': '../data/feas_tsptw/n20_amai/val_1k.npz', 'val_solution_path': None, 'train_set_path': '../data/feas_tsptw/n20_amai/train_100k.npz', 'include_service_time': True, 'keep_all_checkpoints': False, 'pip_decoder': False, 'simulation_stop_epoch': 10, 'pip_update_interval': 10, 'pip_update_epoch': 2, 'pip_last_growup': 5, 'pip_save': 'epoch', 'load_which_pip': 'train_fsb_bsf', 'pip_checkpoint': None, 'sl_loss': 'BCEWithLogitsLoss', 'label_balance_sampling': True, 'fast_label_balance': True, 'fast_weight': True, 'decision_boundary': 0.5, 'dislocation_start': -1, 'model': 'attention', 'embedding_dim': 128, 'hidden_dim': 128, 'n_encode_layers': 3, 'tanh_clipping': 10.0, 'normalization': 'batch', 'lr_model': 0.0001, 'lr_critic': 0.0001, 'lr_decay': 1.0, 'eval_only': False, 'n_epochs': 100, 'seed': 2023, 'max_grad_norm': 1.0, 'no_cuda': False, 'exp_beta': 0.8, 'baseline': 'rollout', 'bl_alpha': 0.05, 'bl_warmup_epochs': 1, 'eval_batch_size': 10000, 'checkpoint_encoder': False, 'shrink_size': None, 'log_step': 50, 'log_dir': 'logs/n20_am_pip', 'run_name': 'run_tsptw21_hard_batchNorm_generatePIMask_20260710T175618', 'output_dir': 'outputs/n20_am_pip', 'epoch_start': 0, 'checkpoint_epochs': 1, 'load_path': None, 'resume': None, 'no_tensorboard': False, 'wandb_logger': True, 'wandb_project': 'pip_feasible', 'wandb_name': 'am_pip_tsptw_n20', 'wandb_id': None, 'no_progress_bar': True, 'all_cuda_visible': False, 'CUDA_VISIBLE_ID': '0', 'use_cuda': True, 'is_train_pip_decoder': False, 'save_dir': 'outputs/n20_am_pip/tsptw_21/run_tsptw21_hard_batchNorm_generatePIMask_20260710T175618', '_wandb': {}}
+2026-07-10 17:56:22,956 INFO    MainThread:231013 [wandb_init.py:init():816] starting backend
+2026-07-10 17:56:22,956 INFO    MainThread:231013 [wandb_init.py:init():831] sending inform_init request
+2026-07-10 17:56:23,365 INFO    MainThread:231013 [wandb_init.py:init():836] backend started and connected
+2026-07-10 17:56:23,410 INFO    MainThread:231013 [wandb_init.py:init():906] updated telemetry
+2026-07-10 17:56:23,488 INFO    MainThread:231013 [wandb_init.py:init():929] communicating run to backend with 90.0 second timeout
+2026-07-10 17:56:24,397 INFO    MainThread:231013 [wandb_init.py:init():974] starting run threads in backend
+2026-07-10 17:56:24,678 INFO    MainThread:231013 [wandb_run.py:_console_start():2523] atexit reg
+2026-07-10 17:56:24,678 INFO    MainThread:231013 [wandb_run.py:_redirect():2373] redirect: wrap_raw
+2026-07-10 17:56:24,679 INFO    MainThread:231013 [wandb_run.py:_redirect():2442] Wrapping output streams.
+2026-07-10 17:56:24,679 INFO    MainThread:231013 [wandb_run.py:_redirect():2465] Redirects installed.
+2026-07-10 17:56:24,684 INFO    MainThread:231013 [wandb_init.py:init():1012] run started, returning control to user process
+2026-07-10 18:33:49,608 INFO    wandb-AsyncioManager-main:231013 [service_client.py:_forward_responses():122] [no run ID] Reached EOF.
+2026-07-10 18:33:49,622 INFO    wandb-AsyncioManager-main:231013 [mailbox.py:close():154] [no run ID] Closing mailbox, abandoning 2 handles.
+2026-07-10 18:33:49,622 ERROR   wandb-AsyncioManager-main:231013 [asyncio_manager.py:fn_wrap_exceptions():184] Uncaught exception in run_soon callback.
+Traceback (most recent call last):
+  File "/scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private/.venv/lib/python3.12/site-packages/wandb/sdk/lib/asyncio_manager.py", line 182, in fn_wrap_exceptions
+    await fn()
+  File "/scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private/.venv/lib/python3.12/site-packages/wandb/sdk/lib/run_messages.py", line 90, in loop
+    await asyncio_compat.race(
+  File "/scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private/.venv/lib/python3.12/site-packages/wandb/sdk/lib/asyncio_compat.py", line 278, in race
+    async with open_task_group(race=True) as tg:
+  File "/opt/software/pc2/EB-SW/software/Python/3.12.3-GCCcore-13.2.0/lib/python3.12/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private/.venv/lib/python3.12/site-packages/wandb/sdk/lib/asyncio_compat.py", line 240, in open_task_group
+    await task_group._wait_all(race=race, timeout=exit_timeout)
+  File "/scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private/.venv/lib/python3.12/site-packages/wandb/sdk/lib/asyncio_compat.py", line 180, in _wait_all
+    raise exc
+  File "/scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private/.venv/lib/python3.12/site-packages/wandb/sdk/lib/run_messages.py", line 113, in _print_all
+    result = await handle.wait_async(timeout=None)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private/.venv/lib/python3.12/site-packages/wandb/sdk/mailbox/mailbox_handle.py", line 127, in wait_async
+    response = await self._handle.wait_async(timeout=timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private/.venv/lib/python3.12/site-packages/wandb/sdk/mailbox/response_handle.py", line 123, in wait_async
+    raise HandleAbandonedError()
+wandb.sdk.mailbox.mailbox_handle.HandleAbandonedError
