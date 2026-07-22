@@ -1,0 +1,271 @@
+_wandb:
+    value:
+        cli_version: 0.28.0
+        e:
+            xx57rkmij1uoikypr9tpy3pmjuwl1wn5:
+                args:
+                    - --problem
+                    - tsptw
+                    - --graph_size
+                    - "101"
+                    - --train_set_path
+                    - ../data/feas_tsptw/n100_amai_mw/train_100k.npz
+                    - --val_dataset
+                    - ../data/feas_tsptw/n100_amai_mw/val_1k.npz
+                    - --val_size
+                    - "1000"
+                    - --include_service_time
+                    - --n_epochs
+                    - "500"
+                    - --seed
+                    - "2023"
+                    - --output_dir
+                    - outputs/n100_mw_am_pip
+                    - --log_dir
+                    - logs/n100_mw_am_pip
+                    - --no_progress_bar
+                    - --wandb_logger
+                    - --wandb_project
+                    - pip_feasible
+                    - --wandb_name
+                    - am_pip_tsptw_n100_mw
+                    - --generate_PI_mask
+                    - --resume
+                    - ./outputs/n100_mw_am_pip/tsptw_101/run_tsptw101_hard_batchNorm_generatePIMask_20260710T191833/epoch-315.pt
+                    - --wandb_id
+                    - habv0176
+                codePath: AM+PIP/run.py
+                codePathLocal: run.py
+                cpu_count: 128
+                cpu_count_logical: 128
+                cudaVersion: "13.0"
+                disk:
+                    /:
+                        total: "12874416128"
+                        used: "8767954944"
+                email: nayeli.gast.zepeda@univie.ac.at
+                executable: /scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private/.venv/bin/python
+                git:
+                    commit: ef08572a6f1bea2756caffe21e381483d206f474
+                    remote: git@github.com:ngastzepeda/PIP-constraint-private.git
+                gpu: NVIDIA A100-SXM4-40GB
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "42949672960"
+                      name: NVIDIA A100-SXM4-40GB
+                      uuid: GPU-2529458f-8738-cd11-7b21-8ff999f2db64
+                host: n2gpu1206
+                memory:
+                    total: "540810035200"
+                os: Linux-4.18.0-553.139.1.el8_10.x86_64-x86_64-with-glibc2.28
+                program: /scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private/AM+PIP/run.py
+                python: CPython 3.12.3
+                root: outputs/n100_mw_am_pip/tsptw_101/run_tsptw101_hard_batchNorm_generatePIMask_20260712T172542
+                slurm:
+                    cluster_name: noctua2
+                    conf: /opt/software/slurm/25.11.2-1/etc/slurm.conf
+                    cpus_on_node: "2"
+                    cpus_per_task: "2"
+                    eclibr: "0"
+                    ecplug: "1"
+                    erlast: sbatch
+                    ersbac: "1"
+                    gpus_on_node: "1"
+                    gtids: "0"
+                    job_account: hpc-prf-tqff
+                    job_cpus_per_node: "2"
+                    job_end_time: "1784474721"
+                    job_gid: "10000"
+                    job_gpus: "1"
+                    job_id: "33610934"
+                    job_name: pip_n100_mw_am_pip
+                    job_nodelist: n2gpu1206
+                    job_num_nodes: "1"
+                    job_partition: gpu
+                    job_qos: nocont
+                    job_start_time: "1783869921"
+                    job_uid: "97274"
+                    job_user: winf409
+                    jobid: "33610934"
+                    localid: "0"
+                    mem_per_cpu: "8192"
+                    nnodes: "1"
+                    nodeid: "0"
+                    nodelist: n2gpu1206
+                    nprocs: "1"
+                    ntasks: "1"
+                    ntasks_per_node: "1"
+                    oom_kill_step: "0"
+                    pmix_tmpdir: /dev/shm
+                    prio_process: "0"
+                    procid: "0"
+                    script_context: prolog_task
+                    spank_spank_clustercockpit: normal
+                    spank_spank_collectors: normal
+                    spank_spank_fpgalinkenabled: "NO"
+                    spank_spank_hugememssd: "off"
+                    submit_dir: /scratch/hpc-prf-tqff/ngastzepeda/PIP-constraint-private
+                    submit_host: n2login3
+                    task_pid: "477329"
+                    tasks_per_node: "1"
+                    topology_addr: TOP.n2-12-L1-01.n2gpu1206
+                    topology_addr_pattern: switch.switch.node
+                    tres_per_task: cpu=2
+                startedAt: "2026-07-12T15:25:46.021438Z"
+                writerId: xx57rkmij1uoikypr9tpy3pmjuwl1wn5
+        m: []
+        python_version: 3.12.3
+        t:
+            "1":
+                - 1
+                - 5
+                - 53
+            "2":
+                - 1
+                - 5
+                - 53
+            "3":
+                - 5
+                - 13
+                - 14
+                - 16
+                - 61
+                - 62
+            "4": 3.12.3
+            "5": 0.28.0
+            "12": 0.28.0
+            "13": linux-x86_64
+CUDA_VISIBLE_ID:
+    value: "0"
+all_cuda_visible:
+    value: false
+baseline:
+    value: rollout
+batch_size:
+    value: 512
+bl_alpha:
+    value: 0.05
+bl_warmup_epochs:
+    value: 1
+checkpoint_encoder:
+    value: false
+checkpoint_epochs:
+    value: 1
+decision_boundary:
+    value: 0.5
+dislocation_start:
+    value: -1
+embedding_dim:
+    value: 128
+epoch_size:
+    value: 1280000
+epoch_start:
+    value: 0
+eval_batch_size:
+    value: 10000
+eval_only:
+    value: false
+exp_beta:
+    value: 0.8
+fast_label_balance:
+    value: true
+fast_weight:
+    value: true
+generate_PI_mask:
+    value: true
+graph_size:
+    value: 101
+hardness:
+    value: hard
+hidden_dim:
+    value: 128
+include_service_time:
+    value: true
+is_train_pip_decoder:
+    value: false
+keep_all_checkpoints:
+    value: false
+label_balance_sampling:
+    value: true
+load_path:
+    value: null
+load_which_pip:
+    value: train_fsb_bsf
+log_dir:
+    value: logs/n100_mw_am_pip
+log_step:
+    value: 50
+lr_critic:
+    value: 0.0001
+lr_decay:
+    value: 1
+lr_model:
+    value: 0.0001
+max_grad_norm:
+    value: 1
+model:
+    value: attention
+n_encode_layers:
+    value: 3
+n_epochs:
+    value: 500
+no_cuda:
+    value: false
+no_progress_bar:
+    value: true
+no_tensorboard:
+    value: false
+normalization:
+    value: batch
+output_dir:
+    value: outputs/n100_mw_am_pip
+pip_checkpoint:
+    value: null
+pip_decoder:
+    value: false
+pip_last_growup:
+    value: 5
+pip_save:
+    value: epoch
+pip_update_epoch:
+    value: 2
+pip_update_interval:
+    value: 10
+problem:
+    value: tsptw
+resume:
+    value: ./outputs/n100_mw_am_pip/tsptw_101/run_tsptw101_hard_batchNorm_generatePIMask_20260710T191833/epoch-315.pt
+run_name:
+    value: run_tsptw101_hard_batchNorm_generatePIMask_20260712T172542
+save_dir:
+    value: outputs/n100_mw_am_pip/tsptw_101/run_tsptw101_hard_batchNorm_generatePIMask_20260712T172542
+seed:
+    value: 2023
+shrink_size:
+    value: null
+simulation_stop_epoch:
+    value: 10
+sl_loss:
+    value: BCEWithLogitsLoss
+tanh_clipping:
+    value: 10
+train_set_path:
+    value: ../data/feas_tsptw/n100_amai_mw/train_100k.npz
+use_cuda:
+    value: true
+val_dataset:
+    value: ../data/feas_tsptw/n100_amai_mw/val_1k.npz
+val_size:
+    value: 1000
+val_solution_path:
+    value: null
+wandb_id:
+    value: habv0176
+wandb_logger:
+    value: true
+wandb_name:
+    value: am_pip_tsptw_n100_mw
+wandb_project:
+    value: pip_feasible
