@@ -238,7 +238,7 @@ def sample_many(inner_func, get_cost_func, input, batch_rep=1, iter_rep=1):
             minpi.append(pis[i][mask[i]==0][min_idx.item()])
         else: # no feasible
             mincost.append(float('inf'))
-            minpi.append(torch.arange(1, pi.size(-1)+1).cuda())
+            minpi.append(torch.arange(1, pi.size(-1)+1, device=pi.device))  # was .cuda(); breaks CPU eval
     mincosts = torch.tensor(mincost)
     minpis = torch.stack(minpi)
     # mincosts, argmincosts = costs.min(-1)
