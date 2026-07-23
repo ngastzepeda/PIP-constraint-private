@@ -49,7 +49,7 @@ VARIANT_CFG = {
 }
 
 
-def _model_params(variant):
+def _model_params(variant, device):
     cfg = VARIANT_CFG[variant]
     return {
         "embedding_dim": 128,
@@ -74,10 +74,11 @@ def _model_params(variant):
         "W_kv_sl": cfg["sl"],
         "use_ninf_mask_in_sl_MHA": False,
         "generate_PI_mask": cfg["gen"],
+        "device": device,
     }
 
 
-def _env_params(size):
+def _env_params(size, device):
     return {
         "problem_size": DATASETS[size]["problem_size"],
         "pomo_size": 1,  # redundant under argmax + pomo_start=False
@@ -85,6 +86,7 @@ def _env_params(size):
         "pomo_start": False,
         "k_sparse": 500,
         "check_depot_return": True,
+        "device": device,
     }
 
 
@@ -110,8 +112,8 @@ def _tester_params(job, batch_size, aug_factor, test_episodes):
 
 def evaluate_job(Tester, job, device, batch_size, aug_factor, test_episodes):
     """-> (feas[bool, N], cost_norm[float, N]) for one checkpoint."""
-    env_params = _env_params(job["size"])
-    model_params = _model_params(job["variant"])
+    env_params = _env_params(job["size"], device)
+    model_params = _model_params(job["variant"], device)
     tester_params = _tester_params(job, batch_size, aug_factor, test_episodes)
     args = SimpleNamespace(
         problem="TSPTW", checkpoint=job["ckpt"], device=device, pip_checkpoint=None
@@ -122,6 +124,10 @@ def evaluate_job(Tester, job, device, batch_size, aug_factor, test_episodes):
         model_params=model_params,
         tester_params=tester_params,
     )
+    # Under cuda/cpu the default tensor type (set in setup_device) already
+    # places model params correctly at construction time; under mps there is
+    # no such trick, so move explicitly (a no-op when already on device).
+    tester.model = tester.model.to(device)
     env = tester.envs[0](**env_params)
 
     feas_parts, cost_parts = [], []
@@ -145,11 +151,26 @@ def evaluate_job(Tester, job, device, batch_size, aug_factor, test_episodes):
 
 
 def setup_device(device_str):
-    """Match test.py: POMO env code relies on the default tensor type."""
-    if device_str == "cuda" and torch.cuda.is_available():
+    """device_str is an already-resolved (available) choice: cpu/cuda/mps.
+
+    Match test.py: POMO env code relies on the default tensor type for
+    device-less tensor creation. There is no 'torch.mps.FloatTensor' legacy
+    tensor type, so the mps branch instead relies on the explicit "device" key
+    threaded into _model_params/_env_params (SINGLEModel/TSPTWEnv already
+    support that key) plus the explicit .to(device) calls added around the
+    model and env.load_problems() output.
+    """
+    if device_str == "cuda":
         torch.cuda.set_device(0)
         torch.set_default_tensor_type("torch.cuda.FloatTensor")
         return torch.device("cuda", 0)
+    if device_str == "mps":
+        # No 'torch.mps.FloatTensor' legacy type exists, so use the modern
+        # replacement instead: it covers the env's device-less factory calls
+        # (torch.zeros/arange/eye/...), just not the legacy torch.Tensor()
+        # constructor -- that gap is closed separately (see load_problems).
+        torch.set_default_device("mps")
+        return torch.device("mps")
     torch.set_default_tensor_type("torch.FloatTensor")
     return torch.device("cpu")
 
@@ -158,7 +179,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--jobs", required=True, help="JSON file: list of job dicts")
     ap.add_argument("--out", required=True, help="JSON file to write result rows")
-    ap.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
+    ap.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
     ap.add_argument("--bks_csv", default=str(common.DEFAULT_BKS_CSV))
     ap.add_argument("--test_batch_size", type=int, default=500)
     ap.add_argument("--aug_factor", type=int, default=8, choices=[1, 8])
@@ -174,7 +195,7 @@ def main():
     from Tester import Tester  # noqa: E402
     from utils import seed_everything  # noqa: E402
 
-    device = setup_device(args.device)
+    device = setup_device(common.pick_device(args.device))
     rows = []
     for job in jobs:
         seed_everything(args.seed)  # per-checkpoint determinism, as in test.py

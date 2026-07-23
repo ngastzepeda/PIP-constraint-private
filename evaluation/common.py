@@ -54,6 +54,32 @@ KINDS = ("best", "last", "pip")  # checkpoint suffixes; "pip" is the PIP-D aux h
 _SIZES_BY_LEN = sorted(DATASETS, key=len, reverse=True)
 
 
+def pick_device(requested="auto"):
+    """Resolve --device: 'auto' probes cuda > mps > cpu, warning if it has to
+    land on cpu. An explicit cpu/cuda/mps request is honored if available,
+    else falls back through the same cuda > mps > cpu chain (also warning
+    before landing on cpu). Imports torch lazily so this module stays
+    torch-free at import time for callers that don't need it."""
+    import torch  # noqa: PLC0415 (deferred: see module docstring)
+
+    available = {
+        "cuda": torch.cuda.is_available(),
+        "mps": torch.backends.mps.is_available(),
+        "cpu": True,
+    }
+    if requested != "auto" and available[requested]:
+        return requested
+    if requested != "auto":
+        print(f"WARNING: --device {requested} requested but not available on "
+              f"this machine; falling back.", file=sys.stderr)
+    for name in ("cuda", "mps"):
+        if available[name]:
+            return name
+    print("WARNING: no CUDA or MPS device found; falling back to CPU. "
+          "Inference will be much slower.", file=sys.stderr)
+    return "cpu"
+
+
 def bks_size_key(size):
     """DATASETS folder ('n20_amai', 'n100_amai_sw') -> AMAI csv `size` key
     ('20_amai', '100_amai_sw'): the csv strips the leading 'n'."""

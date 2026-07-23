@@ -241,10 +241,24 @@ that reports the **same metrics as the AMAI eval**
 (`AMAI2025/source/evaluation/eval_checkpoints.py`) in the same txt/csv format, so
 the two repos' numbers are directly comparable.
 
-* Entry point (cluster wrapper): `bash evaluation/eval_checkpoints.sh --device cuda`
-  (module load + repo-root `.venv`; run on a GPU login node or `sbatch`). Filters
-  mirror the other scripts: `--modes {best,last}`, `--families {pomo,am}`,
-  `--sizes {n20,n50,n100_sw,n100_mw}`, `--variants ...`.
+* Entry point: `python evaluation/eval_checkpoints.py` (workstation-only, no
+  cluster wrapper — `evaluation/eval_checkpoints.sh` was removed). `--device`
+  defaults to `auto`, which probes `cuda > mps > cpu` and prints a `WARNING:`
+  if it has to land on `cpu` (`common.pick_device`); pass `--device cuda|mps|cpu`
+  to force one. Filters mirror the other scripts: `--modes {best,last}`,
+  `--families {pomo,am}`, `--sizes {n20,n50,n100_sw,n100_mw}`, `--variants ...`.
+  MPS required real fixes, not just accepting the string: POMO+PIP relied on
+  `torch.set_default_tensor_type('torch.cuda.FloatTensor')` (no MPS analogue)
+  and `SINGLEModel`/`TSPTWEnv` silently fell back to `cuda-if-available-else-cpu`
+  when no device was threaded in. Fixed by passing `device` through
+  `_model_params`/`_env_params` in `eval_pomo.py`, moving the model explicitly,
+  using `torch.set_default_device('mps')` for the MPS branch, and patching
+  `POMO+PIP/envs/TSPTWEnv.py:load_problems` to move the loaded-dataset tensors
+  onto `self.device` (the legacy `torch.Tensor(...)` constructor used in
+  `load_dataset`/`load_npz_dataset` ignores `set_default_device`, so those
+  would otherwise stay on cpu and crash against mps tensors elsewhere).
+  AM+PIP needed no fix (already device-agnostic via `.to(device)`). Verified:
+  MPS and CPU produce identical cost numbers on the same checkpoint/instances.
 * Output: `evaluation/results/eval_checkpoints_{best,last}.{txt,csv}`, one row per
   checkpoint slot with `feas_count` (feasible instances / 1000), `cost` (mean
   feasible tour length in real 0–100 units = normalized length × `max_loc`),

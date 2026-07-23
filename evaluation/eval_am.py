@@ -121,7 +121,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--jobs", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
+    ap.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
     ap.add_argument("--bks_csv", default=str(common.DEFAULT_BKS_CSV))
     ap.add_argument("--decode", default="sampling", choices=["sampling", "greedy"])
     ap.add_argument("--width", type=int, default=1280, help="samples/instance (sampling)")
@@ -141,9 +141,8 @@ def main():
     from utils.functions import load_problem, move_to, seed_everything  # noqa: E402
     from torch.utils.data import DataLoader  # noqa: E402
 
-    device = torch.device(
-        "cuda:0" if args.device == "cuda" and torch.cuda.is_available() else "cpu"
-    )
+    resolved = common.pick_device(args.device)
+    device = torch.device({"cuda": "cuda:0", "mps": "mps", "cpu": "cpu"}[resolved])
     problem = load_problem("tsptw")
 
     width = 0 if args.decode == "greedy" else args.width

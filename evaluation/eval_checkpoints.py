@@ -14,10 +14,12 @@ is evaluated in its own subprocess (eval_pomo.py / eval_am.py). This script is
 the orchestrator: it discovers the jobs, dispatches them per family, then
 collects and writes the results.
 
-    # via the cluster wrapper (recommended, sets up module + venv):
-    bash evaluation/eval_checkpoints.sh --device cuda
-    bash evaluation/eval_checkpoints.sh --modes best --sizes n20 n50
-    bash evaluation/eval_checkpoints.sh --families am --am_decode greedy
+Run directly from the repo root's venv (workstation only, no cluster wrapper):
+
+    python evaluation/eval_checkpoints.py                      # auto device: cuda > mps > cpu
+    python evaluation/eval_checkpoints.py --modes best --sizes n20 n50
+    python evaluation/eval_checkpoints.py --families am --am_decode greedy
+    python evaluation/eval_checkpoints.py --device cpu          # force CPU
 """
 
 import argparse
@@ -74,7 +76,7 @@ def run_family(family, jobs, args, staging):
 def get_parser():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
+    p.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
     p.add_argument("--modes", nargs="+", default=["best", "last"],
                    choices=["best", "last"])
     p.add_argument("--families", nargs="+", default=["pomo", "am"],
@@ -99,6 +101,8 @@ def get_parser():
 
 def main():
     args = get_parser().parse_args()
+    args.device = common.pick_device(args.device)
+    print(f"Using device: {args.device}", flush=True)
 
     for mode in args.modes:
         jobs = common.discover_jobs([mode], sizes=args.sizes, variants=args.variants)

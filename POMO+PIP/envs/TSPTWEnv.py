@@ -127,6 +127,16 @@ class TSPTWEnv:
         else:
             node_xy, service_time, tw_start, tw_end = self.get_random_problems(batch_size, self.problem_size, max_tw_size=100)
 
+        # load_dataset/load_npz_dataset build these via the legacy torch.Tensor()
+        # constructor, which (unlike torch.zeros/torch.tensor/...) ignores both
+        # set_default_tensor_type and set_default_device on mps, always landing
+        # on cpu; move explicitly so mps eval doesn't hit a cpu/mps device
+        # mismatch below (no-op under cuda/cpu, where they're already correct).
+        node_xy = node_xy.to(self.device)
+        service_time = service_time.to(self.device)
+        tw_start = tw_start.to(self.device)
+        tw_end = tw_end.to(self.device)
+
         # Skip normalization for pre-normalized data (e.g. loaded via load_npz_dataset, coords in [0, 1]):
         # locs/tw/service times were already scaled by max_loc there, and the depot time window
         # from the data must be kept (not recomputed below).
