@@ -92,6 +92,58 @@ what AM's *in-training* validation used to select `best`).
   same masking at test time, matching AM+PIP's own `eval.py`. The separate
   `<tag>_pip.pt` head is not used at eval.
 
+## Batch size: NOT purely a performance knob for AM+PIP
+
+`--am_batch_size`/`eval_batch_size` and `--am_max_calc_batch_size` are **not**
+result-invariant the way batch size is for POMO+PIP. Empirically verified
+(same checkpoint, same instances, greedy/deterministic decode): `eval_batch_size
+16` vs `4` gave different `feas`/`cost` on an identical 32-instance slice.
+Root cause: `AM+PIP/nets/graph_encoder.py:132` uses
+`nn.BatchNorm1d(..., track_running_stats=False)`, which computes *live* batch
+statistics even in `model.eval()` mode — so which instances happen to share a
+batch changes their encoded representations, hence their decoded tours.
+POMO+PIP has no such issue (`POMO+PIP/models/SINGLEModel.py` uses
+`InstanceNorm1d`, per-instance; verified bit-identical cost across
+`test_batch_size` 20 vs 4). **Implication:** changing `--am_batch_size` for
+"consistency" with the other RL4CO models' batch size 128 is a real
+methodology choice for AM+PIP, not a free/neutral one — pick it once and hold
+it fixed across the whole AM+PIP table, and note it in the paper if it differs
+from the other models' batch size.
+
+`--am_max_calc_batch_size` (added to `eval_checkpoints.py` — previously only
+settable by calling `eval_am.py` directly) chunks the *sampling* axis (same
+`width` total samples/instance, computed in smaller sequential pieces) when
+set below `width`, trading wall-clock for peak GPU memory.
+
+**Found, but deliberately did not fix, an upstream `sample_many` bug** while
+exercising this: `AM+PIP/utils/functions.py::sample_many` only chunks
+(`iter_rep>1`) when `max_calc_batch_size < width` — a code path nothing in
+this repo had exercised before (the inherited default keeps `max_calc_batch_size
+== width` always, so `iter_rep` is always exactly 1). It turned out broken:
+the per-instance infeasibility `mask` is computed fresh every `iter_rep` loop
+iteration but never accumulated (unlike `costs`/`pis`, which are correctly
+`torch.cat`'d across iterations) — so only the *last* chunk's mask survives,
+sized to one chunk while `costs`/`pis` are sized to the full `width`, crashing
+with a shape-mismatch `IndexError` as soon as chunking actually triggers.
+Pre-existing in the vendored code (present since the original "upload AM+PIP"
+commit — this is a fork of
+[jieyibi/PIP-constraint](https://github.com/jieyibi/PIP-constraint) — not
+introduced by anything in `evaluation/`) and generic to all three AM variants,
+not PIP-specific; upstream's own `eval.py` would hit it identically if run
+with `max_calc_batch_size < width * eval_batch_size` far enough to make
+`iter_rep>=2`.
+
+Decision: **do not patch vendored AM+PIP logic.** Instead, sidestep the bug
+entirely by never triggering the chunked path — `evaluation/eval_checkpoints.sh`
+now pins `--am_width` and `--am_max_calc_batch_size` equal (both 1280,
+upstream's own defaults), which forces `iter_rep=1` unconditionally regardless
+of `eval_batch_size`, so the broken multi-chunk branch is structurally
+unreachable. `evaluation/eval_am.py` prints a `WARNING:` if `max_calc_batch_size
+< width` is ever set, explaining the bug and pointing at `eval_batch_size` as
+the safe lever instead. Peak memory (`width * eval_batch_size`) is instead
+controlled via `--am_batch_size` (see above — not a free knob either, but at
+least a documented, deliberate one).
+
 ## Open decision (paper)
 
 For **AM**, the default is sampling-1280 (strong, comparable to AMAI's augmented

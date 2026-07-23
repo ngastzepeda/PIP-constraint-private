@@ -280,6 +280,29 @@ the two repos' numbers are directly comparable.
   from its variant (all trained with `--include_service_time`; `--generate_PI_mask`
   for pip/am_pip, `+ --pip_decoder` for pipd/am_pipd), and the checkpoint's
   `{best,last}` weights are loaded onto that model.
+* **Batch size is not just a speed knob for AM+PIP**: it changes results
+  (`feas`/`cost`), not only runtime — `AM+PIP/nets/graph_encoder.py` uses
+  `BatchNorm1d(track_running_stats=False)`, which normalizes on live batch
+  statistics even at eval time, so batch composition changes encoded
+  representations. POMO+PIP (`InstanceNorm1d`) is unaffected (verified
+  bit-identical cost across batch sizes). `--am_max_calc_batch_size` is now
+  wired through `eval_checkpoints.py` (previously `eval_am.py`-only) to trade
+  wall-clock for peak GPU memory on `am_pip`/`am_pipd` without touching
+  `--am_batch_size`. This surfaced a pre-existing vendored bug in
+  `AM+PIP/utils/functions.py::sample_many` (upstream
+  [jieyibi/PIP-constraint](https://github.com/jieyibi/PIP-constraint), not
+  introduced here): chunked calls (`max_calc_batch_size < width`) crash
+  because the per-instance infeasibility mask isn't accumulated across chunks
+  like `costs`/`pis` are. Left the vendored logic untouched by choice and
+  instead sidestepped it: `evaluation/eval_checkpoints.sh` pins `--am_width`
+  and `--am_max_calc_batch_size` equal (1280, upstream's own defaults) so the
+  broken chunked path is never reached, and controls peak memory only via
+  `--am_batch_size` (defaulted there to 8, down from upstream's 16, to avoid
+  the observed n100 `am_pipd` OOM); `eval_am.py` warns if `max_calc_batch_size
+  < width` is ever set anyway. `--pomo_batch_size` defaults to 128 there too
+  (matches the other RL4CO experiments' batch size — free to pick, since
+  POMO+PIP's batch size has no effect on results). Full detail + evidence in
+  `notes/eval_decode_settings.md`.
 * **Decode settings** (per family, all CLI-configurable; full reference in
   `notes/eval_decode_settings.md`):
   * POMO (pomo/pip/pipd): `aug_factor=8`, `eval_type=argmax`, `pomo_start=False`

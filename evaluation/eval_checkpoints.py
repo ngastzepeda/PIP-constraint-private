@@ -61,7 +61,8 @@ def run_family(family, jobs, args, staging):
     else:
         cmd += ["--decode", args.am_decode, "--width", str(args.am_width),
                 "--eval_batch_size", str(args.am_batch_size),
-                "--softmax_temp", str(args.am_softmax_temp)]
+                "--softmax_temp", str(args.am_softmax_temp),
+                "--max_calc_batch_size", str(args.am_max_calc_batch_size)]
 
     print(f"\n=== {family} family: {len(jobs)} checkpoint(s) ===", flush=True)
     result = subprocess.run(cmd)
@@ -96,6 +97,10 @@ def get_parser():
     p.add_argument("--am_width", type=int, default=1280)
     p.add_argument("--am_batch_size", type=int, default=16)
     p.add_argument("--am_softmax_temp", type=float, default=1.0)
+    p.add_argument("--am_max_calc_batch_size", type=int, default=1280,
+                   help="cap on parallel sampling rollouts per forward pass "
+                        "(width*eval_batch_size, chunked above this); lower to "
+                        "trade speed for less GPU memory on am_pip/am_pipd")
     return p
 
 

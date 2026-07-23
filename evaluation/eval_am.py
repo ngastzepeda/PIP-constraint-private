@@ -132,6 +132,18 @@ def main():
     ap.add_argument("--seed", type=int, default=2024)
     args = ap.parse_args()
 
+    if args.decode == "sampling" and args.max_calc_batch_size < args.width:
+        print(
+            f"WARNING: --max_calc_batch_size ({args.max_calc_batch_size}) < "
+            f"--width ({args.width}) makes AM+PIP/utils/functions.py::sample_many "
+            f"chunk (iter_rep>1). That path has a pre-existing vendored bug: the "
+            f"per-chunk infeasibility mask isn't accumulated across chunks (only "
+            f"costs/pis are), so the 2nd+ chunk crashes with a shape-mismatch "
+            f"IndexError. Keep --max_calc_batch_size >= --width to avoid it "
+            f"(reduce --eval_batch_size instead to lower peak memory).",
+            file=sys.stderr,
+        )
+
     with open(args.jobs) as f:
         jobs = json.load(f)
 
