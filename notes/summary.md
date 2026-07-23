@@ -241,12 +241,16 @@ that reports the **same metrics as the AMAI eval**
 (`AMAI2025/source/evaluation/eval_checkpoints.py`) in the same txt/csv format, so
 the two repos' numbers are directly comparable.
 
-* Entry point: `python evaluation/eval_checkpoints.py` (workstation-only, no
-  cluster wrapper — `evaluation/eval_checkpoints.sh` was removed). `--device`
-  defaults to `auto`, which probes `cuda > mps > cpu` and prints a `WARNING:`
-  if it has to land on `cpu` (`common.pick_device`); pass `--device cuda|mps|cpu`
-  to force one. Filters mirror the other scripts: `--modes {best,last}`,
-  `--families {pomo,am}`, `--sizes {n20,n50,n100_sw,n100_mw}`, `--variants ...`.
+* Entry point: `bash evaluation/eval_checkpoints.sh` (workstation-only, no
+  slurm — activates the repo-root `.venv`, runs with `--device cuda`, logs
+  stdout+stderr to `logs/<timestamp>.log`; extra args forwarded, e.g. `--modes
+  best --sizes n20 n50`, and a later `--device` overrides the script's
+  default). Can also be run directly as `python evaluation/eval_checkpoints.py`
+  (no logging then); `--device` there defaults to `auto`, which probes
+  `cuda > mps > cpu` and prints a `WARNING:` if it has to land on `cpu`
+  (`common.pick_device`). Filters mirror the other scripts: `--modes
+  {best,last}`, `--families {pomo,am}`, `--sizes {n20,n50,n100_sw,n100_mw}`,
+  `--variants ...`.
   MPS required real fixes, not just accepting the string: POMO+PIP relied on
   `torch.set_default_tensor_type('torch.cuda.FloatTensor')` (no MPS analogue)
   and `SINGLEModel`/`TSPTWEnv` silently fell back to `cuda-if-available-else-cpu`
