@@ -138,8 +138,10 @@ exceptions marked *(default changed)*.
   `torch.load` needed `weights_only=False` on torch ≥ 2.6 (also applied to all
   checkpoint/dataset loads in POMO+PIP and GFACS+PIP — the PIP-D checkpoints
   store accuracies as numpy scalars, which the torch ≥ 2.6 weights-only
-  unpickler rejects, so resuming `pipd` runs crashed); two hardcoded `.cuda()`
-  calls broke CPU execution; `--val_dataset`/`--val_solution_path` were
+  unpickler rejects, so resuming `pipd` runs crashed); three hardcoded `.cuda()`
+  calls broke CPU execution (two in training plus one in `sample_many`'s
+  no-feasible-solution branch, `utils/functions.py`, which broke CPU *evaluation*
+  — the `evaluation/` pipeline in §6 exercises this path); `--val_dataset`/`--val_solution_path` were
   unconditionally overwritten by the hardness defaults.
 
 ## 4. Experiment settings
@@ -234,14 +236,54 @@ script from inside its implementation directory).
 
 ## 6. Evaluation (after training)
 
-* POMO: `python test.py --test_set_path ../data/feas_tsptw/<ds>/test_1k.npz
-  --test_episodes 1000 --checkpoint <...> --problem_size <N+1> --include_service_time
-  --check_depot_return [--generate_PI_mask]`.
-* AM: `python eval.py --datasets <test file> --model <run dir>` (model settings are
-  restored from the run dir's `args.json`).
-* Checkpoints to evaluate: `trained_model_val_best.pt` (POMO) / `val_best.pt` (AM),
-  selected by validation feasibility rate; the latest `epoch-N.pt` is the "last"
-  model.
+The gathered checkpoints are evaluated with a dedicated pipeline in `evaluation/`
+that reports the **same metrics as the AMAI eval**
+(`AMAI2025/source/evaluation/eval_checkpoints.py`) in the same txt/csv format, so
+the two repos' numbers are directly comparable.
+
+* Entry point (cluster wrapper): `bash evaluation/eval_checkpoints.sh --device cuda`
+  (module load + repo-root `.venv`; run on a GPU login node or `sbatch`). Filters
+  mirror the other scripts: `--modes {best,last}`, `--families {pomo,am}`,
+  `--sizes {n20,n50,n100_sw,n100_mw}`, `--variants ...`.
+* Output: `evaluation/results/eval_checkpoints_{best,last}.{txt,csv}`, one row per
+  checkpoint slot with `feas_count` (feasible instances / 1000), `cost` (mean
+  feasible tour length in real 0–100 units = normalized length × `max_loc`),
+  `gap_bks` (mean % gap over feasible instances to the AMAI per-instance BKS) and
+  `inference_time`. Test instances: `data/feas_tsptw/<folder>/test_1k.npz`
+  (identical to the AMAI tsptw test sets); the BKS comes from the AMAI baseline
+  csv (`--bks_csv`, default the sibling repo's
+  `eval_baselines_instance_results.csv`; absent → `gap_bks` NaN, no crash).
+* Because POMO+PIP and AM+PIP share top-level module names (`utils`, …), each
+  family is evaluated in its own subprocess (`evaluation/eval_pomo.py`,
+  `evaluation/eval_am.py`); `evaluation/common.py` (torch-free) holds checkpoint
+  discovery, the BKS lookup, the AMAI-style aggregation and the txt/csv writers.
+  The flat gathered checkpoints carry no run-dir context (`args.json` / CLI
+  flags), so each model's hyperparameters are reconstructed deterministically
+  from its variant (all trained with `--include_service_time`; `--generate_PI_mask`
+  for pip/am_pip, `+ --pip_decoder` for pipd/am_pipd), and the checkpoint's
+  `{best,last}` weights are loaded onto that model.
+* **Decode settings** (per family, all CLI-configurable; full reference in
+  `notes/eval_decode_settings.md`):
+  * POMO (pomo/pip/pipd): `aug_factor=8`, `eval_type=argmax`, `pomo_start=False`
+    — reproducing the training-time validation that selected `best.ckpt`
+    (`Trainer._val_one_batch`); with `pomo_start` off + argmax the pomo rollouts
+    are identical copies, so `pomo_size=1` gives the same feasibility/cost cheaply.
+    pip adds the env 1-step PI mask; pipd additionally uses the model's own
+    PIP-decoder head to predict the mask (`use_predicted_PI_mask`).
+  * AM (am/am_pip/am_pipd): sampling with `--am_width` samples/instance (default
+    1280, AM+PIP's `eval.py` default; `--am_decode greedy` for a single greedy
+    rollout). `generate_PI_mask` supplies the analytic 1-step mask for
+    am_pip/am_pipd; the PIP-decoder SL head is built (weights load) but does not
+    change decoding under `sample_many`, matching AM+PIP's own `eval.py` — so the
+    separate `..._pip.pt` aux head is not needed at eval time.
+* Feasibility and cost use each repo's real env dynamics (service times +
+  depot-return check), so they are consistent with training/validation and the
+  AMAI semantics (§2). The per-repo `test.py` / `eval.py` remain usable directly
+  for gap-to-LKH on the *original* PIP datasets, but the AMAI-comparable numbers
+  come from this pipeline.
+* Checkpoints evaluated: `trained_model_val_best.pt` (POMO) / `val_best.pt` (AM)
+  gathered as `<tag>_best.pt`, selected by validation feasibility rate; the latest
+  `epoch-N.pt` gathered as `<tag>_last.pt` is the "last" model.
 * `bash gather_checkpoints.sh [--git-add]` (cluster, repo root) collects each run's
   checkpoints into flat `checkpoints/<tag>_{best,last,pip}.pt` files plus a
   `manifest.csv` (source path, epoch, score) — `pip` is the PIP-D auxiliary decoder
@@ -267,13 +309,12 @@ script from inside its implementation directory).
 
 ## 7. Open items
 
-* **Optimality gap**: convert the Gurobi solutions
-  (`AMAI2025/data/baselines/gurobi/tsptw/`) into the repos' opt-sol pkl format
-  (`[(cost, route), ...]`, costs in raw 0–100 units — the testers divide by 100) and
-  pass via `--test_set_opt_sol_path` / `--val_solution_path`. Only needed at
-  evaluation time; training and validation run without it. Alternatively (and for
-  the feasibility-rate metrics in any case), export tours and evaluate with the
-  AMAI checker for a single shared evaluation pipeline.
+* **Optimality gap**: the `evaluation/` pipeline (§6) reports the gap to the AMAI
+  per-instance BKS directly, so the AMAI-comparable numbers need no LKH opt-sol
+  files. (The per-repo `test.py`/`eval.py` still expect LKH pkls for their own
+  gap-to-LKH on the original PIP datasets; converting the AMAI Gurobi solutions to
+  that pkl format — `[(cost, route), ...]`, raw 0–100 units, divided by 100 by the
+  testers — remains optional and is only needed if using those scripts directly.)
 * Decide on the optional 2× budget ablation (see §4).
 * The `lkh_*.pkl` files in `data/TSPTW|TSPDL/` are LKH3 reference solutions for the
   *original* PIP datasets (gap computation only) — not used for the AMAI experiments.
