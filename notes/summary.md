@@ -376,6 +376,69 @@ the two repos' numbers are directly comparable.
   decide between reporting the post-resume best and re-running). Unfinished runs
   are marked PROVISIONAL; re-check after completion.
 
+### Out-of-distribution TSPTW benchmarks (`evaluation/benchmarks/`)
+
+A separate pipeline evaluates the gathered checkpoints on the **classic TSPTW
+benchmark libraries** in `data/benchmarks/tsptw/` (Dumas, GendreauDumasExtended,
+Langevin, OhlmannThomas), which are out-of-distribution to the AMAI training
+instances. Entry point `bash evaluation/benchmarks/eval_benchmarks.sh`
+(workstation-only; pinned decode/batch knobs copied verbatim from
+`eval_instance_results.sh` so numbers use the *same* inference), or directly
+`python evaluation/benchmarks/eval_benchmarks.py`.
+
+* **Output** (exactly the `eval_instance_results` column contract): one csv per
+  checkpoint at `evaluation/benchmarks/results/{variant_label}_{mode}.csv`, one
+  row per instance, columns `instance` (e.g. `Dumas/n100w20.001`), `feasible`
+  (1/0), `objective` (exact tour length, blank if infeasible), `runtime`
+  (per-instance inference seconds). Plus a compact `summary_{mode}.csv` grouping
+  by `variant × dataset × size × window` (feasibility rate, mean feasible
+  objective, mean runtime) for a paper-sized table.
+* **Coordinates vs. distance matrix.** These libraries ship an explicit `n×n`
+  **distance matrix + time windows, no coordinates**, but the models and the
+  AMAI checker are coordinate/Euclidean based. So per instance we recover 2D
+  coordinates via **classical MDS** (`bench_common.classical_mds`) purely to give
+  the model a visit *order*; the reported feasibility + objective are recomputed
+  from the **exact original matrix** by `bench_common.check_tsptw_matrix`. So the
+  MDS embedding error (≈2% on Dumas) never touches the reported numbers — the gap
+  to literature best-known values is measured on true distances. The exact-
+  distance checker is also added as the source-of-truth
+  `check_tsptw_matrix(dist_matrix, time_windows, service_times, tour, eps)` in
+  `AMAI2025/source/checkers/solution_checker/checker.py`; `bench_common` keeps a
+  documented mirror (that repo isn't importable from this venv — no
+  `pyrootutils`, same reason `evaluation/common.py` mirrors AMAI logic).
+* **Scaling.** MDS coords are shifted to the positive quadrant and scaled so the
+  bounding box is `[0, 100]` (training range); time windows and service times are
+  scaled by the *same* factor so the model sees an in-distribution scale while the
+  travel-time/time-window ratio is preserved (the loaders then divide by
+  `max_loc=100`). Tour order is scale-invariant, so this never changes the
+  proposed tour.
+* **Tour extraction.** The family workers (`eval_am_bench.py`,
+  `eval_pomo_bench.py`, each its own subprocess, reusing `eval_am`/`eval_pomo`
+  model builders) output the *tour* the model proposes rather than the model's own
+  Euclidean cost: per instance the min-cost rollout the model deemed feasible
+  under its own masking, or (if none) the min-cost rollout overall — so there is
+  always a concrete tour for the exact checker to judge. AM reads the tour from
+  `sample_many`'s rollouts; POMO reuses `Tester._test_one_batch`'s
+  best-augmentation `selected_node_list` selection.
+* **Which checkpoints / sizes (manifest-driven).** The
+  `AMAI2025/source/benchmarks/tsptw_benchmark_manifest.json`
+  `amai_checkpoint_size_match` is the source of truth: exact-size match, so the
+  `n20` checkpoint is evaluated only on the size-20 benchmark group and `n100`
+  only on the size-100 group (`n50` on nothing — there is no size-50 benchmark),
+  ensuring every model is compared on identical instances. `n100 → n100_sw`
+  (single-window; `--ckpt_mw` for `n100_mw`). The size-100 group is Dumas 15 +
+  Gendreau 25 = 40 instances. `--ckpt_size`/`--sizes`/`--datasets`/`--windows`
+  narrow further; `--no_manifest` falls back to direct discovery + a nearest-size
+  checkpoint (`nearest_ckpt_size`). One csv per variant **accumulates every
+  instance that variant is size-matched to across size groups** (so e.g. `am_best.csv`
+  would hold the size-20 and size-100 rows together when both are run).
+* **Node counts vary within a nominal-size group**, so instances are sub-grouped
+  by *actual* node count (one npz each) before inference: Langevin's `N20/N40/N60`
+  are 19/39/59 customers (20/40/60 nodes), while Dumas/Gendreau `n20` is 20
+  customers (21 nodes). POMO's env `problem_size` is set to that actual node count
+  (it builds `problem_size`-shaped tensors); the attention weights themselves are
+  size-agnostic, so an `n100`-trained checkpoint runs on any node count.
+
 ## 7. Open items
 
 * **Optimality gap**: the `evaluation/` pipeline (§6) reports the gap to the AMAI
