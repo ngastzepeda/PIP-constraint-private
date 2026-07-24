@@ -330,7 +330,7 @@ the two repos' numbers are directly comparable.
   entry point that runs the *same* inference (same workers/settings, so numbers
   match `eval_checkpoints.py`) but records results **per instance** instead of
   only the aggregate row. It writes one csv per checkpoint at
-  `evaluation/instance_results/{size}/{variant}/{mode}.csv` — sizes `n20`, `n50`,
+  `evaluation/instance_results/{size}/{variant}_{mode}.csv` — sizes `n20`, `n50`,
   `n100_sw`, `n100_mw`; variants `am`, `pomo`, `am_pip`, `pomo_pip`, `am_pipd`,
   `pomo_pipd` (i.e. `VARIANTS[variant]['label']`); columns `instance`,
   `feasibility` (1/0), `objective` (best feasible tour length in real 0–100

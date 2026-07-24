@@ -263,7 +263,7 @@ def variant_label(variant):
 
 
 def instance_csv_path(size, variant, mode):
-    return INSTANCE_RESULTS_DIR / size / variant_label(variant) / f"{mode}.csv"
+    return INSTANCE_RESULTS_DIR / size / f"{variant_label(variant)}_{mode}.csv"
 
 
 def write_instance_csv(size, variant, mode, feas, cost_norm, runtime, dom):

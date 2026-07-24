@@ -12,7 +12,7 @@
 #
 # Runs the SAME inference as eval_checkpoints.sh (identical knobs below, so the
 # numbers match), but records results per test instance to
-# evaluation/instance_results/{size}/{variant}/{mode}.csv instead of only the
+# evaluation/instance_results/{size}/{variant}_{mode}.csv instead of only the
 # aggregate row. Defaults to --modes best (leave out "last" for now); pass
 # --modes best last to record both. --sizes/--variants filter as usual.
 #
