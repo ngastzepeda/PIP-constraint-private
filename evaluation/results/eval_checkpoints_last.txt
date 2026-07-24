@@ -38,3 +38,26 @@
 2026-07-23 17:44:13 | pip/tsptw/n100_mw/am (last):	 897 & 1019.016 & 5.668 & 89.328 | checkpoints/n100_mw_am_last.pt
 2026-07-23 17:44:13 | pip/tsptw/n100_mw/am_pip (last):	 902 & 1019.313 & 5.714 & 342.661 | checkpoints/n100_mw_am_pip_last.pt
 2026-07-23 17:44:13 | pip/tsptw/n100_mw/am_pipd (last):	 841 & 1033.967 & 7.389 & 406.973 | checkpoints/n100_mw_am_pipd_last.pt
+##### ----- NEW EVALUATION RUN ----- #####
+2026-07-24 00:33:40 | pip/tsptw/n20/pomo (last):	 999 & 410.146 & 3.209 & 0.471 | checkpoints/n20_pomo_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n20/pip (last):	 998 & 409.479 & 3.055 & 0.356 | checkpoints/n20_pip_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n20/pipd (last):	 998 & 411.351 & 3.526 & 0.401 | checkpoints/n20_pipd_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n20/am (last):	 993 & 414.430 & 4.337 & 5.367 | checkpoints/n20_am_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n20/am_pip (last):	 1000 & 413.222 & 3.919 & 10.949 | checkpoints/n20_am_pip_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n20/am_pipd (last):	 995 & 414.858 & 4.467 & 12.625 | checkpoints/n20_am_pipd_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n50/pomo (last):	 988 & 808.129 & 3.341 & 0.514 | checkpoints/n50_pomo_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n50/pip (last):	 979 & 802.174 & 2.564 & 0.879 | checkpoints/n50_pip_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n50/pipd (last):	 977 & 804.874 & 2.916 & 0.994 | checkpoints/n50_pipd_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n50/am (last):	 935 & 820.886 & 5.344 & 24.175 | checkpoints/n50_am_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n50/am_pip (last):	 937 & 816.292 & 4.587 & 82.620 | checkpoints/n50_am_pip_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n50/am_pipd (last):	 940 & 818.740 & 4.904 & 109.919 | checkpoints/n50_am_pipd_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n100_sw/pomo (last):	 940 & 1063.393 & 1.077 & 1.146 | checkpoints/n100_sw_pomo_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n100_sw/pipd (last):	 951 & 1061.687 & 0.880 & 3.834 | checkpoints/n100_sw_pipd_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n100_sw/am (last):	 739 & 1073.101 & 2.261 & 89.143 | checkpoints/n100_sw_am_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n100_sw/am_pip (last):	 678 & 1077.868 & 2.758 & 342.878 | checkpoints/n100_sw_am_pip_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n100_sw/am_pipd (last):	 665 & 1077.820 & 2.849 & 402.468 | checkpoints/n100_sw_am_pipd_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n100_mw/pomo (last):	 989 & 987.145 & 2.038 & 1.137 | checkpoints/n100_mw_pomo_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n100_mw/pipd (last):	 993 & 979.449 & 1.224 & 3.839 | checkpoints/n100_mw_pipd_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n100_mw/am (last):	 897 & 1019.016 & 5.668 & 89.080 | checkpoints/n100_mw_am_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n100_mw/am_pip (last):	 902 & 1019.313 & 5.714 & 344.819 | checkpoints/n100_mw_am_pip_last.pt
+2026-07-24 00:33:40 | pip/tsptw/n100_mw/am_pipd (last):	 841 & 1033.967 & 7.389 & 404.562 | checkpoints/n100_mw_am_pipd_last.pt
