@@ -195,7 +195,7 @@ def main():
     ap.add_argument("--seed", type=int, default=2024)
     ap.add_argument("--instance_csv", action="store_true",
                     help="also write per-instance results to "
-                         "instance_results/{size}/{variant}/{mode}.csv")
+                         "instance_results/{size}/{variant}_{mode}.csv")
     args = ap.parse_args()
 
     with open(args.jobs) as f:

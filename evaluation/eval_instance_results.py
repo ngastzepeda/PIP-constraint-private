@@ -5,7 +5,7 @@ inference (same workers, same settings, so the numbers match), but instead of
 only writing the aggregated feas_count/cost/gap_bks row per checkpoint, it
 writes one csv per checkpoint with a row per test instance:
 
-    evaluation/instance_results/{size}/{variant}/{mode}.csv
+    evaluation/instance_results/{size}/{variant}_{mode}.csv
 
   size    : n20, n50, n100_sw, n100_mw
   variant : am, pomo, am_pip, pomo_pip, am_pipd, pomo_pipd
@@ -50,7 +50,7 @@ def sort_key(job):
 
 def run_family(family, jobs, args, staging):
     """Launch the family worker as a subprocess with --instance_csv, so it
-    writes instance_results/{size}/{variant}/{mode}.csv for each job directly.
+    writes instance_results/{size}/{variant}_{mode}.csv for each job directly.
     (--out is still required by the worker; we point it at a throwaway file and
     ignore the aggregated rows.)"""
     jobs_file = staging / f"jobs_{family}.json"
@@ -134,7 +134,7 @@ def main():
 
         print(f"\nmode={mode}: per-instance csvs written under "
               f"{common.INSTANCE_RESULTS_DIR.relative_to(common.REPO_ROOT)}/"
-              f"{{size}}/{{variant}}/{mode}.csv", flush=True)
+              f"{{size}}/{{variant}}_{mode}.csv", flush=True)
 
 
 if __name__ == "__main__":

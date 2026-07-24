@@ -142,7 +142,7 @@ def main():
     ap.add_argument("--seed", type=int, default=2024)
     ap.add_argument("--instance_csv", action="store_true",
                     help="also write per-instance results to "
-                         "instance_results/{size}/{variant}/{mode}.csv")
+                         "instance_results/{size}/{variant}_{mode}.csv")
     args = ap.parse_args()
 
     if args.decode == "sampling" and args.max_calc_batch_size < args.width:
