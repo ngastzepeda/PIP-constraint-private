@@ -35,6 +35,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CKPT_ROOT = REPO_ROOT / "checkpoints"
 DATA_ROOT = REPO_ROOT / "data/feas_tsptw"
 RESULTS_DIR = REPO_ROOT / "evaluation" / "results"
+# Per-instance results (eval_instance_results.py): one csv per checkpoint under
+# instance_results/{size}/{variant_label}/{mode}.csv, so gaps-to-BKS can be
+# recomputed per instance without re-running inference.
+INSTANCE_RESULTS_DIR = REPO_ROOT / "evaluation" / "instance_results"
 
 # The AMAI baseline instance results, whose `bks` column gives the per-instance
 # best-known objective (Gurobi/pyvrp) on the *same* test instances. Override
@@ -247,3 +251,73 @@ def write_csv(mode, rows):
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
+
+
+# --------------------------- per-instance output -------------------------- #
+
+def variant_label(variant):
+    """Variant key -> folder label for instance_results/{size}/{variant}:
+    'pomo'/'pip'/'pipd' -> 'pomo'/'pomo_pip'/'pomo_pipd', 'am'/'am_pip'/
+    'am_pipd' unchanged (matches submit_jobs VARIANTS[...]['label'])."""
+    return VARIANTS[variant]["label"]
+
+
+def instance_csv_path(size, variant, mode):
+    return INSTANCE_RESULTS_DIR / size / variant_label(variant) / f"{mode}.csv"
+
+
+def write_instance_csv(size, variant, mode, feas, cost_norm, runtime, dom):
+    """Write one checkpoint's per-instance results (one row per test instance).
+
+    Columns:
+      * instance    : 0-based test-instance index, in test-set order (identical
+                      to the BKS csv's `instance`, so gaps join per instance).
+      * feasibility : 1 if the model found a feasible tour for this instance,
+                      else 0.
+      * objective   : best feasible tour length in real (0..domain_size) units
+                      (cost_norm*dom); blank where infeasible.
+      * runtime     : per-instance inference seconds (batch wall-clock / batch
+                      size). Batched inference has no true per-instance clock, so
+                      this is amortized; it rises with more rollouts per instance
+                      (e.g. AM sampling width>1). Summing the column ~ the
+                      checkpoint's inference compute time (one-time model setup
+                      excluded).
+    """
+    feas = np.asarray(feas, dtype=bool)
+    cost_norm = np.asarray(cost_norm, dtype=float)
+    runtime = np.asarray(runtime, dtype=float)
+    cost_real = np.where(feas, cost_norm * dom, np.nan)
+    path = instance_csv_path(size, variant, mode)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["instance", "feasibility", "objective", "runtime"])
+        for i in range(len(feas)):
+            obj = "" if not feas[i] else round(float(cost_real[i]), 6)
+            w.writerow([i, int(feas[i]), obj, round(float(runtime[i]), 6)])
+    return path
+
+
+def _grid_sort_key(row):
+    return (
+        list(DATASETS).index(row["size"]) if row["size"] in DATASETS else len(DATASETS),
+        list(VARIANTS).index(row["model"]) if row["model"] in VARIANTS else len(VARIANTS),
+    )
+
+
+def merge_csv_rows(mode, new_rows):
+    """Like write_csv, but keeps every existing row (keyed on size+model) and
+    only replaces/adds the given new_rows, instead of overwriting the whole
+    file -- for single-checkpoint runs that must not clobber every other
+    checkpoint's recorded result."""
+    if not new_rows:
+        return
+    path = csv_path(mode)
+    existing = []
+    if path.exists():
+        with open(path, newline="") as f:
+            existing = list(csv.DictReader(f))
+    by_key = {(r["size"], r["model"]): r for r in existing}
+    for r in new_rows:
+        by_key[(r["size"], r["model"])] = r
+    write_csv(mode, sorted(by_key.values(), key=_grid_sort_key))

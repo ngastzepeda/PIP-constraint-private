@@ -1,25 +1,32 @@
-"""Evaluate the gathered PIP checkpoints (checkpoints/) on the AMAI TSPTW test
-instances, producing the *same metrics* as
-AMAI2025/source/evaluation/eval_checkpoints.py so the two repos are directly
-comparable.
+"""Evaluate the gathered PIP checkpoints and record results *per instance*.
 
-For each checkpoint slot ({size}_{variant}_{best,last}.pt) it reports, per
-mode, feas_count / cost / gap_bks / inference_time in the exact AMAI txt+csv
-format (results/eval_checkpoints_{best,last}.{txt,csv}). Instances are
-data/feas_tsptw/{folder}/test_1k.npz (identical to the AMAI tsptw test sets);
-the per-instance BKS for the gap comes from the AMAI baseline csv.
+This is the per-instance sibling of eval_checkpoints.py. It runs the exact same
+inference (same workers, same settings, so the numbers match), but instead of
+only writing the aggregated feas_count/cost/gap_bks row per checkpoint, it
+writes one csv per checkpoint with a row per test instance:
 
-Because POMO+PIP and AM+PIP have colliding top-level module names, each family
-is evaluated in its own subprocess (eval_pomo.py / eval_am.py). This script is
-the orchestrator: it discovers the jobs, dispatches them per family, then
-collects and writes the results.
+    evaluation/instance_results/{size}/{variant}/{mode}.csv
 
-Run directly from the repo root's venv (workstation only, no cluster wrapper):
+  size    : n20, n50, n100_sw, n100_mw
+  variant : am, pomo, am_pip, pomo_pip, am_pipd, pomo_pipd
+  columns : instance, feasibility (1/0), objective (real 0..100 units, blank if
+            infeasible), runtime (per-instance inference seconds)
 
-    python evaluation/eval_checkpoints.py                      # auto device: cuda > mps > cpu
-    python evaluation/eval_checkpoints.py --modes best --sizes n20 n50
-    python evaluation/eval_checkpoints.py --families am --am_decode greedy
-    python evaluation/eval_checkpoints.py --device cpu          # force CPU
+With these files the whole eval pipeline no longer has to be re-run whenever a
+new baseline (BKS) arrives: the per-instance gap to BKS can be computed and
+aggregated directly from the objective column (instances align with the BKS
+csv's `instance` column). See common.write_instance_csv for the exact column
+semantics (notably: runtime is amortized per instance, batched inference has no
+true per-instance clock).
+
+Like eval_checkpoints.py, each family runs in its own subprocess (POMO+PIP and
+AM+PIP have colliding top-level module names). Run from the repo root's venv
+(workstation only, no cluster wrapper):
+
+    python evaluation/eval_instance_results.py                 # best, all sizes/variants
+    python evaluation/eval_instance_results.py --sizes n20 n50
+    python evaluation/eval_instance_results.py --families am --am_decode greedy
+    python evaluation/eval_instance_results.py --modes best last   # also record last
 """
 
 import argparse
@@ -42,8 +49,10 @@ def sort_key(job):
 
 
 def run_family(family, jobs, args, staging):
-    """Launch the family worker as a subprocess (same interpreter/venv) and
-    return its result rows."""
+    """Launch the family worker as a subprocess with --instance_csv, so it
+    writes instance_results/{size}/{variant}/{mode}.csv for each job directly.
+    (--out is still required by the worker; we point it at a throwaway file and
+    ignore the aggregated rows.)"""
     jobs_file = staging / f"jobs_{family}.json"
     out_file = staging / f"rows_{family}.json"
     with open(jobs_file, "w") as f:
@@ -51,7 +60,7 @@ def run_family(family, jobs, args, staging):
 
     cmd = [
         sys.executable, str(EVAL_DIR / WORKER[family]),
-        "--jobs", str(jobs_file), "--out", str(out_file),
+        "--jobs", str(jobs_file), "--out", str(out_file), "--instance_csv",
         "--device", args.device, "--bks_csv", args.bks_csv,
         "--test_episodes", str(args.test_episodes), "--seed", str(args.seed),
     ]
@@ -68,25 +77,24 @@ def run_family(family, jobs, args, staging):
     result = subprocess.run(cmd)
     if result.returncode != 0:
         print(f"WARNING: {family} worker exited with {result.returncode}", flush=True)
-    if not out_file.exists():
-        return []
-    with open(out_file) as f:
-        return json.load(f)
 
 
 def get_parser():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
-    p.add_argument("--modes", nargs="+", default=["best", "last"],
-                   choices=["best", "last"])
+    p.add_argument("--modes", nargs="+", default=["best"],
+                   choices=["best", "last"],
+                   help="checkpoint slots to record (default: best only)")
     p.add_argument("--families", nargs="+", default=["pomo", "am"],
                    choices=["pomo", "am"])
     p.add_argument("--sizes", nargs="+", default=None, choices=list(DATASETS),
                    help="default: all sizes present in checkpoints/")
     p.add_argument("--variants", nargs="+", default=None, choices=list(VARIANTS))
     p.add_argument("--bks_csv", default=str(common.DEFAULT_BKS_CSV),
-                   help="AMAI eval_baselines_instance_results.csv (for gap_bks)")
+                   help="AMAI eval_baselines_instance_results.csv (only used for "
+                        "the console feas/gap summary; the csv itself does not "
+                        "depend on it)")
     p.add_argument("--test_episodes", type=int, default=1000)
     p.add_argument("--seed", type=int, default=2024)
     # POMO knobs
@@ -117,33 +125,16 @@ def main():
         if not jobs:
             continue
 
-        rows = []
         with tempfile.TemporaryDirectory() as tmp:
             staging = Path(tmp)
             for family in args.families:
                 fam_jobs = [j for j in jobs if j["family"] == family]
                 if fam_jobs:
-                    rows += run_family(family, fam_jobs, args, staging)
+                    run_family(family, fam_jobs, args, staging)
 
-        rows.sort(key=lambda r: (list(DATASETS).index(r["size"]),
-                                 list(VARIANTS).index(r["model"])))
-        common.write_new_run_header(mode)
-        for row in rows:
-            common.append_txt_row(mode, row)
-        if len(jobs) == 1:
-            # Filters narrowed this mode down to a single checkpoint: merge
-            # its row into the existing csv instead of overwriting every
-            # other checkpoint's recorded result with just this one row.
-            common.merge_csv_rows(mode, rows)
-            print(f"\nmode={mode}: appended 1 row to "
-                  f"{common.txt_path(mode).relative_to(common.REPO_ROOT)} and "
-                  f"merged it into "
-                  f"{common.csv_path(mode).relative_to(common.REPO_ROOT)}", flush=True)
-        else:
-            common.write_csv(mode, rows)
-            print(f"\nmode={mode}: wrote {len(rows)} rows to "
-                  f"{common.txt_path(mode).relative_to(common.REPO_ROOT)} and "
-                  f"{common.csv_path(mode).relative_to(common.REPO_ROOT)}", flush=True)
+        print(f"\nmode={mode}: per-instance csvs written under "
+              f"{common.INSTANCE_RESULTS_DIR.relative_to(common.REPO_ROOT)}/"
+              f"{{size}}/{{variant}}/{mode}.csv", flush=True)
 
 
 if __name__ == "__main__":

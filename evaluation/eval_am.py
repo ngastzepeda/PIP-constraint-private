@@ -84,7 +84,10 @@ def evaluate_job(
     decode, width, eval_batch_size, max_calc_batch_size, softmax_temp,
     test_episodes,
 ):
-    """-> (feas[bool, N], cost_norm[float, N]) for one checkpoint."""
+    """-> (feas[bool, N], cost_norm[float, N], runtime[float, N]) for one
+    checkpoint. runtime is the per-batch wall-clock split evenly over the
+    batch's instances; sampling (width>1) does width rollouts per instance, so
+    its per-instance runtime is correspondingly higher."""
     model = build_model(AttentionModel, problem, job["variant"], device)
     load_weights(model, job["ckpt"], device)
     model.eval()
@@ -102,19 +105,26 @@ def evaluate_job(
     )
     loader = DataLoader(dataset, batch_size=eval_batch_size)
 
-    feas_parts, cost_parts = [], []
+    feas_parts, cost_parts, rt_parts = [], [], []
     with torch.no_grad():
         for batch in loader:
             batch = move_to(batch, device)
+            # time only the sampling compute (the .cpu() below forces a device
+            # sync, so the bracket captures the full batch of rollouts).
+            t0 = time.time()
             _seq, costs, ins_infsb, _sol_infsb = model.sample_many(
                 batch, batch_rep=batch_rep, iter_rep=iter_rep
             )
             costs = costs.detach().cpu().numpy().astype(float)
             feas = ins_infsb.detach().cpu().numpy().astype(int) == 0
+            dt = time.time() - t0
             cost = np.where(feas, costs, np.nan)  # costs is inf where infeasible
+            bs = len(feas)
             feas_parts.append(feas)
             cost_parts.append(cost)
-    return np.concatenate(feas_parts), np.concatenate(cost_parts)
+            rt_parts.append(np.full(bs, dt / bs))
+    return (np.concatenate(feas_parts), np.concatenate(cost_parts),
+            np.concatenate(rt_parts))
 
 
 def main():
@@ -130,6 +140,9 @@ def main():
     ap.add_argument("--softmax_temp", type=float, default=1.0)
     ap.add_argument("--test_episodes", type=int, default=1000)
     ap.add_argument("--seed", type=int, default=2024)
+    ap.add_argument("--instance_csv", action="store_true",
+                    help="also write per-instance results to "
+                         "instance_results/{size}/{variant}/{mode}.csv")
     args = ap.parse_args()
 
     if args.decode == "sampling" and args.max_calc_batch_size < args.width:
@@ -164,7 +177,7 @@ def main():
         label = job["label"]
         try:
             start = time.time()
-            feas, cost_norm = evaluate_job(
+            feas, cost_norm, runtime = evaluate_job(
                 AttentionModel, problem, move_to, DataLoader, job, device,
                 args.decode, width, args.eval_batch_size,
                 args.max_calc_batch_size, args.softmax_temp, args.test_episodes,
@@ -175,6 +188,11 @@ def main():
             continue
         bks = common.load_bks(job["size"], args.bks_csv, len(feas))
         dom = common.domain_size(job["size"])
+        if args.instance_csv:
+            p = common.write_instance_csv(
+                job["size"], job["variant"], job["kind"], feas, cost_norm, runtime, dom)
+            print(f"[eval_am] {label} ({job['kind']}): wrote "
+                  f"{p.relative_to(common.REPO_ROOT)}", flush=True)
         metrics = common.aggregate(feas, cost_norm, bks, dom)
         row = common.make_row(job, metrics, inference_time)
         rows.append(row)

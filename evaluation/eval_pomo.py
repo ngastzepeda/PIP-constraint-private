@@ -111,7 +111,9 @@ def _tester_params(job, batch_size, aug_factor, test_episodes):
 
 
 def evaluate_job(Tester, job, device, batch_size, aug_factor, test_episodes):
-    """-> (feas[bool, N], cost_norm[float, N]) for one checkpoint."""
+    """-> (feas[bool, N], cost_norm[float, N], runtime[float, N]) for one
+    checkpoint. runtime is the per-batch wall-clock split evenly over the
+    batch's instances (batched inference has no true per-instance clock)."""
     env_params = _env_params(job["size"], device)
     model_params = _model_params(job["variant"], device)
     tester_params = _tester_params(job, batch_size, aug_factor, test_episodes)
@@ -130,7 +132,7 @@ def evaluate_job(Tester, job, device, batch_size, aug_factor, test_episodes):
     tester.model = tester.model.to(device)
     env = tester.envs[0](**env_params)
 
-    feas_parts, cost_parts = [], []
+    feas_parts, cost_parts, rt_parts = [], [], []
     episode = 0
     while episode < test_episodes:
         bs = min(batch_size, test_episodes - episode)
@@ -138,16 +140,22 @@ def evaluate_job(Tester, job, device, batch_size, aug_factor, test_episodes):
         if data[0].size(0) == 0:  # dataset exhausted early
             break
         bs = data[0].size(0)
+        # time only the inference compute (the .cpu() below forces a device sync,
+        # so the bracket captures the full batch, data loading excluded).
+        t0 = time.time()
         # _test_one_batch -> (.., .., no_aug_score, aug_score, .., .., .., aug_feasible)
         out = tester._test_one_batch(data, env)
         aug_score, aug_feasible = out[3], out[7]
         feas = aug_feasible.detach().cpu().numpy().astype(bool)
         cost = aug_score.detach().cpu().numpy().astype(float)  # -best feasible reward
+        dt = time.time() - t0
         cost[~feas] = np.nan  # aug_score is a large sentinel where infeasible
         feas_parts.append(feas)
         cost_parts.append(cost)
+        rt_parts.append(np.full(bs, dt / bs))
         episode += bs
-    return np.concatenate(feas_parts), np.concatenate(cost_parts)
+    return (np.concatenate(feas_parts), np.concatenate(cost_parts),
+            np.concatenate(rt_parts))
 
 
 def setup_device(device_str):
@@ -185,6 +193,9 @@ def main():
     ap.add_argument("--aug_factor", type=int, default=8, choices=[1, 8])
     ap.add_argument("--test_episodes", type=int, default=1000)
     ap.add_argument("--seed", type=int, default=2024)
+    ap.add_argument("--instance_csv", action="store_true",
+                    help="also write per-instance results to "
+                         "instance_results/{size}/{variant}/{mode}.csv")
     args = ap.parse_args()
 
     with open(args.jobs) as f:
@@ -202,7 +213,7 @@ def main():
         label = job["label"]
         try:
             start = time.time()
-            feas, cost_norm = evaluate_job(
+            feas, cost_norm, runtime = evaluate_job(
                 Tester, job, device, args.test_batch_size,
                 args.aug_factor, args.test_episodes,
             )
@@ -212,6 +223,11 @@ def main():
             continue
         bks = common.load_bks(job["size"], args.bks_csv, len(feas))
         dom = common.domain_size(job["size"])
+        if args.instance_csv:
+            p = common.write_instance_csv(
+                job["size"], job["variant"], job["kind"], feas, cost_norm, runtime, dom)
+            print(f"[eval_pomo] {label} ({job['kind']}): wrote "
+                  f"{p.relative_to(common.REPO_ROOT)}", flush=True)
         metrics = common.aggregate(feas, cost_norm, bks, dom)
         row = common.make_row(job, metrics, inference_time)
         rows.append(row)

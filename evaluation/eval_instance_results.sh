@@ -1,33 +1,25 @@
 #!/bin/bash
 
-# Workstation wrapper for evaluation/eval_checkpoints.py: activates the
-# repo-root venv, runs the eval, and logs stdout+stderr to a timestamped file
-# under logs/. Extra args are forwarded (e.g. --modes best --sizes n20 n50);
-# a later flag of the same name overrides the default set below.
+# Workstation wrapper for evaluation/eval_instance_results.py: activates the
+# repo-root venv, runs the per-instance eval, and logs stdout+stderr to a
+# timestamped file under logs/. Extra args are forwarded; a later flag of the
+# same name overrides the default set below.
 #
-#   bash evaluation/eval_checkpoints.sh
-#   bash evaluation/eval_checkpoints.sh --modes best --sizes n20 n50
-#   bash evaluation/eval_checkpoints.sh --device mps
+#   bash evaluation/eval_instance_results.sh                          # best, all
+#   bash evaluation/eval_instance_results.sh --sizes n20 n50
+#   bash evaluation/eval_instance_results.sh --modes best last        # also last
+#   bash evaluation/eval_instance_results.sh --device mps
 #
-# --modes / --sizes / --variants filter which checkpoint slots get evaluated.
-# Allowed values (checkpoint filenames are {size}_{variant}_{mode}.pt):
-#   --modes    best | last
-#   --sizes    n20 | n50 | n100_sw | n100_mw
-#   --variants pomo | pip | pipd | am | am_pip | am_pipd
-# Narrow all three to a single value each to evaluate exactly one checkpoint,
-# e.g.:
-#   bash evaluation/eval_checkpoints.sh --modes best --sizes n100_sw --variants am_pip
-# In that case eval_checkpoints_{best,last}.txt is still appended to as
-# always, but eval_checkpoints_{best,last}.csv is merged (this checkpoint's
-# row added/updated, every other row kept) instead of being overwritten from
-# scratch -- overwrite-from-scratch stays the behavior for a full/multi-
-# checkpoint run.
+# Runs the SAME inference as eval_checkpoints.sh (identical knobs below, so the
+# numbers match), but records results per test instance to
+# evaluation/instance_results/{size}/{variant}/{mode}.csv instead of only the
+# aggregate row. Defaults to --modes best (leave out "last" for now); pass
+# --modes best last to record both. --sizes/--variants filter as usual.
 #
-# The knobs below are chosen to stay as close as possible to the values each
-# vendored repo (AM+PIP, POMO+PIP) uses in its own eval/test script, deviating
-# only where the upstream default causes OOM on our GPU, or where a value has
-# zero effect on results and can safely match our other (RL4CO) experiments.
-# See notes/eval_decode_settings.md for the full writeup and evidence.
+# The knobs below are copied verbatim from evaluation/eval_checkpoints.sh and
+# must stay in sync with it -- they are chosen to match each vendored repo's own
+# eval/test script except where the upstream default OOMs on our GPU or has zero
+# effect on results. See notes/eval_decode_settings.md for the full writeup.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root" || { echo "Error: could not cd to $repo_root"; exit 1; }
@@ -40,9 +32,9 @@ else
 fi
 
 mkdir -p logs
-log_file="logs/$(date +%Y%m%d_%H%M%S).log"
+log_file="logs/$(date +%Y%m%d_%H%M%S)_instance.log"
 echo "Logging to $log_file"
-python -u evaluation/eval_checkpoints.py \
+python -u evaluation/eval_instance_results.py \
   --device cuda \
   \
   `# POMO+PIP: test_batch_size has zero effect on feas/cost/gap (POMO+PIP uses` \

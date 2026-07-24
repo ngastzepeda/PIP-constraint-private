@@ -146,6 +146,10 @@ exceptions marked *(default changed)*.
 
 ## 4. Experiment settings
 
+For the paper-facing writeup of how AM\*/POMO\* differ from vanilla AM/POMO
+(if used as baselines alongside separately-trained models), see
+`notes/training.md`.
+
 Grid: **6 variants × 4 datasets = 24 jobs**
 (variants: POMO\*, POMO\*+PIP, POMO\*+PIP-D, AM\*, AM\*+PIP, AM\*+PIP-D;
 POMO\*/AM\* = base models with the Lagrangian timeout reward, i.e. the repo's
@@ -322,6 +326,30 @@ the two repos' numbers are directly comparable.
   AMAI semantics (§2). The per-repo `test.py` / `eval.py` remain usable directly
   for gap-to-LKH on the *original* PIP datasets, but the AMAI-comparable numbers
   come from this pipeline.
+* **Per-instance results** (`evaluation/eval_instance_results.py`): a second
+  entry point that runs the *same* inference (same workers/settings, so numbers
+  match `eval_checkpoints.py`) but records results **per instance** instead of
+  only the aggregate row. It writes one csv per checkpoint at
+  `evaluation/instance_results/{size}/{variant}/{mode}.csv` — sizes `n20`, `n50`,
+  `n100_sw`, `n100_mw`; variants `am`, `pomo`, `am_pip`, `pomo_pip`, `am_pipd`,
+  `pomo_pipd` (i.e. `VARIANTS[variant]['label']`); columns `instance`,
+  `feasibility` (1/0), `objective` (best feasible tour length in real 0–100
+  units, blank if infeasible), `runtime` (per-instance inference seconds). The
+  point is decoupling from the BKS: with these files a new baseline no longer
+  forces a full re-run — the per-instance gap to BKS can be computed and
+  aggregated directly from `objective`, since rows are ordered by instance index
+  and align with the BKS csv's `instance` column. Defaults to `best` only (pass
+  `--modes best last` for both). Entry point `bash
+  evaluation/eval_instance_results.sh` (workstation-only), whose pinned
+  decode/batch knobs are copied verbatim from `eval_checkpoints.sh` and must
+  stay in sync with it, so the two pipelines' numbers match. Implemented by
+  adding an `--instance_csv` flag to the
+  workers (which now also time each batch and split the wall-clock evenly over
+  the batch's instances — batched inference has no true per-instance clock, so
+  `runtime` is amortized and rises with more rollouts per instance, e.g. AM
+  sampling `width>1`) plus `common.write_instance_csv`; the aggregate pipeline is
+  unchanged. Its `inference_time` column stays a single total-wall-clock number
+  per checkpoint.
 * Checkpoints evaluated: `trained_model_val_best.pt` (POMO) / `val_best.pt` (AM)
   gathered as `<tag>_best.pt`, selected by validation feasibility rate; the latest
   `epoch-N.pt` gathered as `<tag>_last.pt` is the "last" model.
