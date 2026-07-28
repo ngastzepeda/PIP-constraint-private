@@ -32,6 +32,7 @@ together.
 import csv
 import json
 import re
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -39,6 +40,13 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 BENCH_ROOT = REPO_ROOT / "data/benchmarks/tsptw"
 RESULTS_DIR = REPO_ROOT / "evaluation" / "benchmarks" / "results"
+
+# Sibling AMAI repo's PIP benchmark results dir (same path assumption as
+# DEFAULT_MANIFEST / DEFAULT_BKS_CSV below): the per-instance CSVs are copied
+# here after a run so the AMAI table generator picks them up unchanged.
+AMAI_PIP_DIR = REPO_ROOT.parent / "AMAI2025/source/benchmarks/results/tsptw/pip"
+# stale pre-fix layout: one accumulated {variant}_{mode}.csv (no ckpt-size token)
+_STALE_PIP_RE = re.compile(r"(am|am_pip|am_pipd|pomo|pomo_pip|pomo_pipd)_(best|last)\.csv$")
 
 # The AMAI benchmark manifest is the source of truth for which nominal-size
 # groups each checkpoint size is evaluated on (exact-size match: n20->size 20,
@@ -371,6 +379,47 @@ def write_instance_csv(variant_label, ckpt_size, mode, rows):
             obj = "" if not r["feasible"] else round(float(r["objective"]), 6)
             w.writerow([r["name"], int(r["feasible"]), obj, round(float(r["runtime"]), 6)])
     return path
+
+
+def sync_to_amai(written, dest=AMAI_PIP_DIR, prune=False):
+    """Copy the per-instance benchmark CSVs into the sibling AMAI repo's
+    results/tsptw/pip/ so its table generator (build_benchmark_tables.py) picks
+    them up -- filenames already match the AMAI/LMask layout, so it's a plain
+    copy. No-op with a note when that repo isn't present alongside this one.
+
+    `written` is the list of Paths returned by write_instance_csv this run. Stale
+    files from the pre-fix layout ({variant}_{mode}.csv, no ckpt-size token) are
+    reported; with `prune=True` they are deleted (they are ignored by the AMAI
+    generator either way, but are confusing to leave behind). Never commits.
+    """
+    dest = Path(dest)
+    if not dest.parent.parent.exists():  # .../results/tsptw must exist
+        print(f"AMAI results tree not found near {dest}; skipping sync.", flush=True)
+        return []
+    dest.mkdir(parents=True, exist_ok=True)
+    copied = []
+    for src in written:
+        src = Path(src)
+        tgt = dest / src.name
+        shutil.copy2(src, tgt)
+        copied.append(tgt)
+    print(f"synced {len(copied)} PIP result file(s) -> {dest}", flush=True)
+
+    keep = {p.name for p in copied}
+    stale = sorted(f for f in dest.glob("*.csv")
+                   if f.name not in keep and _STALE_PIP_RE.fullmatch(f.name))
+    if stale:
+        if prune:
+            for f in stale:
+                f.unlink()
+            print(f"pruned {len(stale)} stale size-mixed file(s): "
+                  f"{', '.join(f.name for f in stale)}", flush=True)
+        else:
+            print(f"NOTE: {len(stale)} stale size-mixed PIP file(s) remain in "
+                  f"{dest} ({', '.join(f.name for f in stale)}); they are ignored "
+                  f"by the AMAI table but confusing -- rerun with --prune_amai_stale "
+                  f"to delete them.", flush=True)
+    return copied
 
 
 def summary_csv_path(mode):

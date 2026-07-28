@@ -187,6 +187,14 @@ def get_parser():
                    help="restrict the size-100 group to the multi-window "
                         "checkpoints (n100_mw) only; by default BOTH n100_sw and "
                         "n100_mw are evaluated (use --ckpt_size to pick one)")
+    p.add_argument("--no_sync_amai", dest="sync_amai", action="store_false",
+                   help="do NOT copy the per-instance results into the sibling "
+                        "AMAI repo's source/benchmarks/results/tsptw/pip/ "
+                        "(default: copy there if that repo is present)")
+    p.set_defaults(sync_amai=True)
+    p.add_argument("--prune_amai_stale", action="store_true",
+                   help="when syncing, also delete stale pre-fix size-mixed PIP "
+                        "files ({variant}_{mode}.csv) from the AMAI pip results dir")
     p.add_argument("--eps", type=float, default=bc.EPS_DEFAULT)
     p.add_argument("--seed", type=int, default=2024)
     # POMO knobs
@@ -238,9 +246,10 @@ def main():
         print("No benchmark instances / checkpoints match the filters.", flush=True)
         return
 
+    written = []  # per-instance csvs produced, for the optional AMAI sync
     for mode in args.modes:
         print(f"\n##### mode={mode} #####", flush=True)
-        rows_by_variant = {}  # variant_label -> accumulated per-instance rows
+        rows_by_variant = {}  # (variant_label, ckpt_size) -> accumulated rows
         for dkey, recs in plan:
             run_ckpt_size(dkey, recs, mode, args, rows_by_variant)
 
@@ -248,6 +257,7 @@ def main():
         for (variant_label, dkey) in sorted(rows_by_variant):
             rows = sorted(rows_by_variant[(variant_label, dkey)], key=lambda r: r["name"])
             path = bc.write_instance_csv(variant_label, dkey, mode, rows)
+            written.append(path)
             n_feas = sum(1 for r in rows if r["feasible"])
             print(f"\n{variant_label}_{dkey}_{mode}.csv: {len(rows)} instances, "
                   f"{n_feas} feasible -> {path.relative_to(bc.REPO_ROOT)}", flush=True)
@@ -257,6 +267,10 @@ def main():
             spath = bc.write_summary(mode, summary_rows)
             print(f"mode={mode}: grouped summary -> {spath.relative_to(bc.REPO_ROOT)}",
                   flush=True)
+
+    if written and args.sync_amai:
+        print(f"\n##### syncing to AMAI repo #####", flush=True)
+        bc.sync_to_amai(written, prune=args.prune_amai_stale)
 
 
 if __name__ == "__main__":
