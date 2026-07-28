@@ -2,12 +2,14 @@
 libraries (data/benchmarks/tsptw/) as an out-of-distribution test, writing one
 per-instance csv per checkpoint:
 
-    evaluation/benchmarks/results/{variant_label}_{mode}.csv
+    evaluation/benchmarks/results/{variant_label}_{ckpt_size}_{mode}.csv
       columns: instance, feasible (1/0), objective (blank if infeasible),
                runtime (per-instance inference seconds)
 
+one file per checkpoint size (n20 / n100_sw / n100_mw), mirroring the AMAI/LMask
+benchmark layout so each PIP variant is directly comparable per size/window,
 plus a compact grouped view (summary_{mode}.csv, one row per
-variant x dataset x size x window).
+variant x ckpt_size x dataset x size x window).
 
 Pipeline (see bench_common.py for the why):
   1. read the AMAI benchmark manifest (--manifest), which maps each checkpoint
@@ -155,7 +157,7 @@ def run_ckpt_size(dkey, recs, mode, args, rows_by_variant):
             for variant_label, res in results.items():
                 rows = score(variant_label, res, grp, exact_dist, exact_tw,
                              exact_service, args)
-                rows_by_variant.setdefault(variant_label, []).extend(rows)
+                rows_by_variant.setdefault((variant_label, dkey), []).extend(rows)
 
 
 def get_parser():
@@ -182,8 +184,9 @@ def get_parser():
                    help="restrict to a single checkpoint size (manifest mode) / "
                         "force it (no-manifest mode)")
     p.add_argument("--ckpt_mw", action="store_true",
-                   help="use the multi-window n100 checkpoints (n100_mw) instead "
-                        "of single-window (n100_sw) for the size-100 group")
+                   help="restrict the size-100 group to the multi-window "
+                        "checkpoints (n100_mw) only; by default BOTH n100_sw and "
+                        "n100_mw are evaluated (use --ckpt_size to pick one)")
     p.add_argument("--eps", type=float, default=bc.EPS_DEFAULT)
     p.add_argument("--seed", type=int, default=2024)
     # POMO knobs
@@ -242,13 +245,13 @@ def main():
             run_ckpt_size(dkey, recs, mode, args, rows_by_variant)
 
         summary_rows = []
-        for variant_label in sorted(rows_by_variant):
-            rows = sorted(rows_by_variant[variant_label], key=lambda r: r["name"])
-            path = bc.write_instance_csv(variant_label, mode, rows)
+        for (variant_label, dkey) in sorted(rows_by_variant):
+            rows = sorted(rows_by_variant[(variant_label, dkey)], key=lambda r: r["name"])
+            path = bc.write_instance_csv(variant_label, dkey, mode, rows)
             n_feas = sum(1 for r in rows if r["feasible"])
-            print(f"\n{variant_label}_{mode}.csv: {len(rows)} instances, "
+            print(f"\n{variant_label}_{dkey}_{mode}.csv: {len(rows)} instances, "
                   f"{n_feas} feasible -> {path.relative_to(bc.REPO_ROOT)}", flush=True)
-            summary_rows += bc.summarize(variant_label, rows)
+            summary_rows += bc.summarize(variant_label, dkey, rows)
 
         if summary_rows:
             spath = bc.write_summary(mode, summary_rows)

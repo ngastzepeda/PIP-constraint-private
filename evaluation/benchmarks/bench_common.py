@@ -47,9 +47,11 @@ RESULTS_DIR = REPO_ROOT / "evaluation" / "benchmarks" / "results"
 DEFAULT_MANIFEST = (
     REPO_ROOT.parent / "AMAI2025/source/benchmarks/tsptw_benchmark_manifest.json"
 )
-# manifest checkpoint key -> this repo's DATASETS key (n100 -> single-window by
-# default; --ckpt_mw switches to n100_mw).
-MANIFEST_CKPT_MAP = {"n20": "n20", "n50": "n50", "n100": "n100_sw"}
+# manifest checkpoint key -> this repo's DATASETS key(s). n100 has two window
+# variants (single-/multi-window); BOTH are evaluated by default -- each on the
+# same size-100 instances -- mirroring AMAI's separate n100_sw & n100_mw benchmark
+# result files. --ckpt_mw restricts the n100 group to n100_mw; --ckpt_size picks one.
+MANIFEST_CKPT_MAP = {"n20": ["n20"], "n50": ["n50"], "n100": ["n100_sw", "n100_mw"]}
 
 # arrival/return comparison tolerance in real time units (matches AMAI
 # EPS_DEFAULT); benchmark distances are integer, so this only absorbs float
@@ -139,17 +141,20 @@ def load_manifest(path=DEFAULT_MANIFEST):
 def manifest_plan(manifest, ckpt_sizes=None, mw=False):
     """-> list of (datasets_key, [nominal_sizes]) for each AMAI checkpoint size
     the manifest matches to a non-empty set of benchmark size groups. `ckpt_sizes`
-    (DATASETS keys) narrows which checkpoints run; `mw` maps n100 -> n100_mw."""
+    (DATASETS keys) narrows which checkpoints run. The n100 group maps to BOTH
+    n100_sw and n100_mw by default (each evaluated on the same size-100 instances,
+    mirroring AMAI's two n100 result files); `mw=True` restricts it to n100_mw."""
     plan = []
     for mkey, sizes in manifest["amai_checkpoint_size_match"].items():
         if not sizes:
             continue
-        dkey = MANIFEST_CKPT_MAP[mkey]
+        dkeys = list(MANIFEST_CKPT_MAP[mkey])
         if mkey == "n100" and mw:
-            dkey = "n100_mw"
-        if ckpt_sizes and dkey not in ckpt_sizes:
-            continue
-        plan.append((dkey, list(sizes)))
+            dkeys = ["n100_mw"]
+        for dkey in dkeys:
+            if ckpt_sizes and dkey not in ckpt_sizes:
+                continue
+            plan.append((dkey, list(sizes)))
     return plan
 
 
@@ -347,15 +352,17 @@ def check_tsptw_matrix(dist, tw, service, tour, eps=EPS_DEFAULT):
 
 # -------------------------------- output IO ------------------------------- #
 
-def instance_csv_path(variant_label, mode):
-    return RESULTS_DIR / f"{variant_label}_{mode}.csv"
+def instance_csv_path(variant_label, ckpt_size, mode):
+    return RESULTS_DIR / f"{variant_label}_{ckpt_size}_{mode}.csv"
 
 
-def write_instance_csv(variant_label, mode, rows):
-    """One csv per checkpoint: columns instance, feasible (1/0), objective
-    (blank if infeasible), runtime (seconds). `rows` is a list of dicts with
-    keys name/feasible/objective/runtime, in instance order."""
-    path = instance_csv_path(variant_label, mode)
+def write_instance_csv(variant_label, ckpt_size, mode, rows):
+    """One csv per (variant, checkpoint size): columns instance, feasible (1/0),
+    objective (blank if infeasible), runtime (seconds). Named
+    ``{variant}_{ckpt_size}_{mode}.csv`` to mirror the AMAI/LMask benchmark layout
+    (``{model}_{size}_{mode}.csv``) so n20 / n100_sw / n100_mw land in separate
+    files. `rows` is a list of dicts with keys name/feasible/objective/runtime."""
+    path = instance_csv_path(variant_label, ckpt_size, mode)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
@@ -376,7 +383,7 @@ def write_summary(mode, summary_rows):
     when the per-instance files have too many rows for a paper."""
     path = summary_csv_path(mode)
     path.parent.mkdir(parents=True, exist_ok=True)
-    fields = ["variant", "dataset", "size", "window", "n_instances",
+    fields = ["variant", "ckpt_size", "dataset", "size", "window", "n_instances",
               "feas_count", "feas_rate", "mean_objective", "mean_runtime"]
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields)
@@ -385,9 +392,10 @@ def write_summary(mode, summary_rows):
     return path
 
 
-def summarize(variant_label, rows):
-    """Collapse one checkpoint's per-instance rows into per-(dataset,size,window)
-    summary rows (mean objective over FEASIBLE instances only)."""
+def summarize(variant_label, ckpt_size, rows):
+    """Collapse one (variant, checkpoint size) block's per-instance rows into
+    per-(dataset,size,window) summary rows (mean objective over FEASIBLE instances
+    only). `ckpt_size` keeps the n100_sw / n100_mw rows distinct."""
     groups = {}
     for r in rows:
         dataset = r["name"].split("/", 1)[0]
@@ -399,7 +407,8 @@ def summarize(variant_label, rows):
         mean_obj = (round(float(np.mean([g["objective"] for g in feas])), 4)
                     if feas else "")
         out.append(dict(
-            variant=variant_label, dataset=dataset, size=size, window=window,
+            variant=variant_label, ckpt_size=ckpt_size, dataset=dataset,
+            size=size, window=window,
             n_instances=len(grp), feas_count=len(feas),
             feas_rate=round(len(feas) / len(grp), 4),
             mean_objective=mean_obj,
